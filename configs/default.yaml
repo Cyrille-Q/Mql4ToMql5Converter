@@ -1,0 +1,29 @@
+model:
+  name: "t5-small"
+  max_source_length: 512
+  max_target_length: 512
+
+data:
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  train_file: "train.jsonl"
+  val_file: "val.jsonl"
+  test_file: "test.jsonl"
+
+training:
+  batch_size: 8
+  learning_rate: 3e-5
+  num_epochs: 10
+  warmup_steps: 500
+  gradient_accumulation_steps: 2
+  fp16: true
+  output_dir: "outputs/checkpoints"
+  logging_dir: "outputs/logs"
+  save_steps: 500
+  eval_steps: 500
+  logging_steps: 50
+
+inference:
+  max_length: 512
+  num_beams: 4
+  temperature: 1.0
