@@ -215,8 +215,8 @@ marimo/_lsp/
 __marimo__/
 
 # ML / Data
-data/raw/
-data/processed/
+# data/raw/
+# data/processed/
 outputs/
 *.safetensors
 *.pt
