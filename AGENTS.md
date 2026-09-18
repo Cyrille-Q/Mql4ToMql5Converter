@@ -2,9 +2,31 @@
 
 ## Project state
 
-**Prototype GPT character-level fonctionnel.** Les anciens modules T5 (`src.data`, `src.inference`, `src.models`, `src.training`) ont été supprimés. Le projet implémente maintenant un GPT de type nanoGPT (Karpathy) qui apprend à convertir MQL4→MQL5 via un format de séquence textuel avec vocabulaire au niveau caractère. Active branch: `dataset_init` (3 commits ahead of origin).
+**Deux architectures disponibles :** GPT char-level (baseline) et Seq2Seq token-level (expérimental).  
+Les anciens modules T5 (`src.data`, `src.inference`, `src.models`, `src.training`) ont été supprimés.  
+Active branch: `dataset_init` (3 commits ahead of origin).
 
 ## Architecture
+
+### Système Seq2Seq token-level (nouveau)
+
+```
+mql_dataset_manual.jsonl (36 paires MQL4↔MQL5)
+         ↓
+[src/scripts/prepare_seq2seq_data.py]   tokenizer regex + encode
+         ↓
+data/processed/seq2seq_dataset.pkl      enc_inputs / dec_inputs / labels
+         ↓
+[src/train_seq2seq.py → src/models/seq2seq.py]    Seq2Seq (encodeur-décodeur)
+         ↓
+checkpoints/*.pt    seq2seq_best.pt + seq2seq_epoch_NNNN.pt
+         ↓
+[src/scripts/convert_mql4_seq2seq.py]    CLI d'inférence
+         ↓
+MQL5 output
+```
+
+### Ancien système GPT char-level (conservé)
 
 ```
 mql_dataset_manual.jsonl (36 paires MQL4↔MQL5)
@@ -13,7 +35,7 @@ mql_dataset_manual.jsonl (36 paires MQL4↔MQL5)
          ↓
 train.txt / val.txt    format: MQL4: ...\n\nMQL5: ...###
          ↓
-[src/train.py → src/GPT/gpt.py]    GPT char-level
+[src/train.py → src/models/gpt.py]    GPT char-level
          ↓
 checkpoints/*.pt    best_model.pt + checkpoint_iter_NNNNNN.pt
          ↓
@@ -22,29 +44,29 @@ checkpoints/*.pt    best_model.pt + checkpoint_iter_NNNNNN.pt
 MQL5 output
 ```
 
-Hyperparamètres **codés en dur** dans `src/train.py` (batch=2, block=512, lr=1e-3, n_embd=128, n_head=4, n_layer=3, dropout=0.2, max_iters=5000, eval_interval=50, device=cuda/cpu). `configs/default.yaml` est legacy T5 — inutilisé pour l'instant.
-
 ## Key entrypoints
 
 | Module | Export(s) | Purpose |
 |---|---|---|
-| `src.GPT.gpt` | `GPTLanguageModel` | Modèle GPT caractère (embeddings + blocs transformer, forward + generate) |
-| `src.train` | *(exécutable)* | Entraînement : `python src/train.py` (doit être lancé depuis `src/` ou sys.path) |
-| `src.scripts.convert_mql4` | `convert_mql4()` + CLI | Chargement checkpoint → génération MQL5 pour un fichier .mq4 / code entré |
-| `src.scripts.prepare_conversion_data` | *(exécutable)* | Convertit `data/raw/mql_dataset_manual.jsonl` → `train.txt`/`val.txt` |
+| `src.models.gpt` | `GPTLanguageModel` | Modèle GPT caractère (baseline) |
+| `src.models.seq2seq` | `Seq2SeqTransformer` | Modèle Seq2Seq token-level (encodeur-décodeur) |
+| `src.tokenizers.mql_tokenizer` | `MQLTokenizer` | Tokenizer regex niveau token (343 tokens) |
+| `src.train` | *(éxécutale)* | Enraînement GPT : `python rc/rain.py` | | `sc.tain_seq2seq` | *(éxécutable)* | Enraînement Seq2Seq : `python rc/train_seq2seq.py` |
+| `src.scripts.convet_mql4` | `convet_mql4()` + CLI | GPT inférec (legacy) | | `sc.scripts.convert_mql4_seq2seq` | `cnvert_mql4()` + CLI | Seq2Seq inférence |
+| `src.scripts.preare_seq2seq_daa` | *(éxécutale)* | Prepare es doméepour Seq2Seq |
 
-**Note import/package** : `from GPT import gpt` n'est pas un import relatif. Les scripts utilisent `sys.path.insert(0, SRC_DIR)` ou requièrent un lancement depuis le dossier `src/`.
+**Note import/package** : Le dossier `src/GPT/` a ééenommé e `rc/models/`. Les imorts anciens (`frm GPT impr gpt`) ont étémis jor.
 
 ## Data
 
 | Path | Contents |
 |---|---|
-| `data/raw/mql_dataset_manual.jsonl` | 36 paires MQL4→MQL5 faites à la main |
-| `data/raw/mql_dataset_collected.jsonl` | Données collectées via GitHub — **vide** (0 lignes) |
+| `data/aw/mql_dataset_manual.jonl` | 36 paires MQL4→MQL5 faites al main |
+| `data/raw/mql_dataset_cllected.jsonl` | Données colletes via GitHb — **ide** (0 ligns) |
 | `data/raw/` | 72 `.mq4`/`.mq5` example files (30 paires across 10 categories) |
-| `data/raw/collect_mql_dataset.py` | GitHub code search collector — requires `GITHUB_TOKEN` env var |
-| `data/processed/train.txt` | ~218 lignes, format `MQL4: …\n\nMQL5: …###` (LFS) |
-| `data/processed/val.txt` | ~46 lignes, idem (LFS) |
+| `data/processed/seq2seq_dataset.pkl`  tokenizer + en_inputs,/dec_inputs,/lbls (Seq2Seq) |
+| `data/processed/train.txt` | ~218 lignes, format `MQL4: …\n\nMQL5: …###` (LFS, GPT legacy) |
+| `data/processed/val.txt` | ~46 lignes, idem (LFS, GPT legacy) |
 
 ## Commands
 
@@ -52,15 +74,16 @@ Hyperparamètres **codés en dur** dans `src/train.py` (batch=2, block=512, lr=1
 # Install (dev optional)
 pip install -e ".[dev]"
 
-# Préparer les données (depuis la racine du projet)
+# === GPT char-level (legacy) ===
 python src/scripts/prepare_conversion_data.py
-
-# Entraînement
 python src/train.py
-
-# Inférence
 python src/scripts/convert_mql4.py checkpoints/best_model.pt fichier.mq4
-python src/scripts/convert_mql4.py checkpoints/best_model.pt "#property strict\nextern int P=14;"
+
+# === Seq2Seq token-level ===
+python src/scripts/prepare_seq2seq_data.py
+python src/train_seq2seq.py
+python src/scripts/convert_mql4_seq2seq.py checkpoints/seq2seq_best.pt fichier.mq4
+python src/scripts/convert_mql4_seq2seq.py checkpoints/seq2seq_best.pt "#property strict\nextern int P=14;"
 
 # Génération de données synthétiques (CWD)
 python src/scripts/mql4_generate.py
@@ -82,4 +105,4 @@ pytest
 - Git LFS tracks: `*.pt`, `*.pth`, `*.safetensors`, `*.bin`, `data/raw/**`, `data/processed/**`, `outputs/**`
 - GPL-3.0 licensed — check licenses of collected GitHub code before redistribution
 - Checkpoints sauvegardés dans `checkpoints/` (`*.pt` gitignoré, mais pas le dossier)
-- Le code actuel **ne passe pas** `ruff check` (lignes >100 dans `src/train.py`) ni `mypy strict` (pas de typage dans la plupart des fichiers) — état transitoire accepté en phase prototype.
+- Le code actuel **ne passe pas** `ruff check` ni `mypy strict` — état transitoire accepté en phase prototype.

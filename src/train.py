@@ -4,7 +4,7 @@ import os
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from GPT import gpt
+from models import gpt
 
 torch.manual_seed(1337) # Random number
 #sys.path.append(os.path.dirname(__file__))
