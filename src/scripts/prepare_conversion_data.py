@@ -1,15 +1,31 @@
 import json
 import os
+import sys
 import random
+import argparse
 
-random.seed(42)
+# Ajouter la racine du projet au path avant les imports locaux
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
+sys.path.insert(0, _PROJECT_ROOT)
 
-INPUT_JSONL = "data/raw/mql_dataset_manual.jsonl"
-OUTPUT_DIR = "data/processed"
-TRAIN_FILE = os.path.join(OUTPUT_DIR, "train.txt")
-VAL_FILE = os.path.join(OUTPUT_DIR, "val.txt")
+from src.utils.config import load_config
 
-END_TOKEN = "###"
+parser = argparse.ArgumentParser(description='Prepare GPT conversion data')
+parser.add_argument('--config', default='configs/gpt.yaml',
+                    help='Path to YAML config file (default: configs/gpt.yaml)')
+args = parser.parse_args()
+
+cfg = load_config(args.config)
+
+random.seed(cfg.seed)
+
+INPUT_JSONL = cfg.data.input_jsonl
+OUTPUT_DIR = cfg.data.processed_dir
+TRAIN_FILE = os.path.join(OUTPUT_DIR, os.path.basename(cfg.data.train_file))
+VAL_FILE = os.path.join(OUTPUT_DIR, os.path.basename(cfg.data.val_file))
+
+END_TOKEN = cfg.preprocessing.end_token
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -24,7 +40,7 @@ with open(INPUT_JSONL, 'r', encoding='utf-8') as f:
 
 random.shuffle(pairs)
 
-split_idx = int(0.9 * len(pairs))
+split_idx = int(cfg.preprocessing.train_split * len(pairs))
 train_pairs = pairs[:split_idx]
 val_pairs = pairs[split_idx:]
 

@@ -3,18 +3,30 @@ import os
 import sys
 import random
 import pickle
+import argparse
 
+# Ajouter la racine du projet au path avant les imports locaux
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-SRC_DIR = os.path.dirname(SCRIPT_DIR)
-PROJECT_ROOT = os.path.dirname(SRC_DIR)
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
+sys.path.insert(0, _PROJECT_ROOT)
+
+from src.utils.config import load_config
+
+parser = argparse.ArgumentParser(description='Prepare Seq2Seq dataset')
+parser.add_argument('--config', default='configs/seq2seq.yaml',
+                    help='Path to YAML config file (default: configs/seq2seq.yaml)')
+args = parser.parse_args()
+
+cfg = load_config(args.config)
+PROJECT_ROOT = cfg._project_root
 sys.path.insert(0, PROJECT_ROOT)
 
 from src.tokenizers.mql_tokenizer import MQLTokenizer, SOS_IDX, EOS_IDX
 
-random.seed(42)
+random.seed(cfg.seed)
 
-INPUT_JSONL = os.path.join(PROJECT_ROOT, "data/raw/mql_all_936.jsonl")
-OUTPUT_FILE = os.path.join(PROJECT_ROOT, "data/processed/seq2seq_dataset.pkl")
+INPUT_JSONL = cfg.data.input_jsonl
+OUTPUT_FILE = cfg.data.output_pkl
 
 os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
 
@@ -49,10 +61,10 @@ for mql4, mql5 in pairs:
     dec_inputs.append([SOS_IDX] + dec_ids)
     labels.append(dec_ids + [EOS_IDX])
 
-# Train/val split (same seed 42, 90/10)
+# Train/val split
 indices = list(range(len(pairs)))
 random.shuffle(indices)
-split_idx = int(0.9 * len(pairs))
+split_idx = int(cfg.preprocessing.train_split * len(pairs))
 train_idx = indices[:split_idx]
 val_idx = indices[split_idx:]
 

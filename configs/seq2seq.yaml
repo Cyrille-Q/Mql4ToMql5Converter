@@ -1,0 +1,47 @@
+# ──────────────────────────────────────────────
+# Seq2Seq pipeline configuration
+# ──────────────────────────────────────────────
+# Hyperparamètres commentés pour référence.
+# Tous les chemins sont relatifs à la racine du projet.
+
+# Seed unique pour reproductibilité (torch + random)
+seed: 42
+
+# Périphérique : "auto" (cuda si disponible, sinon cpu), "cpu", "cuda"
+device: auto
+
+# Chemins des données et artefacts
+data:
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  checkpoint_dir: "checkpoints"
+  input_jsonl: "mql_all_936.jsonl"
+  output_pkl: "seq2seq_dataset.pkl"
+
+# Prétraitement
+preprocessing:
+  # Proportion des données pour l'entraînement (le reste = validation)
+  train_split: 0.9
+
+# Architecture du modèle
+model:
+  n_embd: 128       # dimension des embeddings
+  n_head: 4         # nombre de têtes d'attention par bloc
+  n_layer: 3        # nombre de blocs encodeur/décodeur
+  dropout: 0.2      # taux de dropout
+  # Taille du contexte maximal (block_size) :
+  # Le modèle considère au plus block_size tokens comme contexte.
+  # block_size = 1024 permet de couvrir des scripts MQL de taille moyenne.
+  block_size: 1024
+
+# Paramètres d'entraînement
+training:
+  # Nombre de séquences indépendantes traitées en parallèle.
+  # Une batch_size plus grande permet des gradients plus stables
+  # mais nécessite plus de mémoire GPU.
+  batch_size: 2
+  max_epochs: 3
+  eval_interval: 10      # évaluer la loss tous les N epochs
+  eval_iters: 10          # nombre de batches pour estimer la loss
+  learning_rate: 0.001
+  checkpoint_interval: 10 # sauvegarder un checkpoint tous les N epochs

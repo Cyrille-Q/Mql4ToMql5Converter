@@ -1,12 +1,28 @@
 # let's now encode the entire text dataset and store it into a torch.Tensor
 import os
-#import sys
+import sys
+import argparse
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from models import gpt
 
-torch.manual_seed(1337) # Random number
+# Ajouter la racine du projet au path avant les imports locaux
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+sys.path.insert(0, _PROJECT_ROOT)
+
+from src.utils.config import load_config, resolve_device
+
+parser = argparse.ArgumentParser(description='Train GPT char-level model')
+parser.add_argument('--config', default='configs/gpt.yaml',
+                    help='Path to YAML config file (default: configs/gpt.yaml)')
+args = parser.parse_args()
+
+cfg = load_config(args.config)
+PROJECT_ROOT = cfg._project_root
+
+torch.manual_seed(cfg.seed)
 #sys.path.append(os.path.dirname(__file__))
 def load_and_encode(filename):
     with open(filename, 'r', encoding='utf-8') as f:
@@ -45,28 +61,26 @@ def get_batch(split, batch_size, block_size):
 
 if __name__ == '__main__':
 
-    # Configuration des chemins
-    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-    PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
-    TRAIN_FILE = os.path.join(PROJECT_ROOT, "data", "processed", "train.txt")
-    VAL_FILE = os.path.join(PROJECT_ROOT, "data", "processed", "val.txt")
-    CHECKPOINT_DIR = os.path.join(PROJECT_ROOT, "checkpoints")
+    # Paths
+    TRAIN_FILE = cfg.data.train_file
+    VAL_FILE = cfg.data.val_file
+    CHECKPOINT_DIR = cfg.data.checkpoint_dir
     os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
     # Hyperparameters
-    batch_size = 2
-    block_size = 512
-    max_iters = 5000
-    eval_interval = 50
-    learning_rate = 1e-3
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    eval_iters = 10
-    n_embd = 128
-    n_head = 4
-    n_layer = 3
-    dropout = 0.2
+    batch_size = cfg.training.batch_size
+    block_size = cfg.model.block_size
+    max_iters = cfg.training.max_iters
+    eval_interval = cfg.training.eval_interval
+    learning_rate = cfg.training.learning_rate
+    device = resolve_device(cfg)
+    eval_iters = cfg.training.eval_iters
+    n_embd = cfg.model.n_embd
+    n_head = cfg.model.n_head
+    n_layer = cfg.model.n_layer
+    dropout = cfg.model.dropout
 
-    END_TOKEN = "###"
+    END_TOKEN = cfg.preprocessing.end_token
 
     train_data, vocab_size, encode, decode = load_and_encode(TRAIN_FILE)
     val_data, _, _, _ = load_and_encode(VAL_FILE)

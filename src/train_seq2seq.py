@@ -1,35 +1,50 @@
 import os
 import sys
 import pickle
+import argparse
 import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pad_sequence
 
+# Ajouter la racine du projet au path avant les imports locaux
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+_PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+sys.path.insert(0, _PROJECT_ROOT)
+
+from src.utils.config import load_config, resolve_device
+
+parser = argparse.ArgumentParser(description='Train Seq2Seq model')
+parser.add_argument('--config', default='configs/seq2seq.yaml',
+                    help='Path to YAML config file (default: configs/seq2seq.yaml)')
+args = parser.parse_args()
+
+cfg = load_config(args.config)
+PROJECT_ROOT = cfg._project_root
 sys.path.insert(0, PROJECT_ROOT)
 
 from src.models.seq2seq import Seq2SeqTransformer
 from src.tokenizers.mql_tokenizer import PAD_IDX, SOS_IDX, EOS_IDX
 
-torch.manual_seed(1337)
+torch.manual_seed(cfg.seed)
 
 # Paths
-DATASET_FILE = os.path.join(PROJECT_ROOT, "data", "processed", "seq2seq_dataset.pkl")
-CHECKPOINT_DIR = os.path.join(PROJECT_ROOT, "checkpoints")
+DATASET_FILE = cfg.data.output_pkl
+CHECKPOINT_DIR = cfg.data.checkpoint_dir
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
 # Hyperparameters
-batch_size = 2
-block_size = 1024
-max_epochs = 500
-eval_interval = 10
-learning_rate = 1e-3
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-n_embd = 128
-n_head = 4
-n_layer = 3
-dropout = 0.2
+batch_size = cfg.training.batch_size
+block_size = cfg.model.block_size
+max_epochs = cfg.training.max_epochs
+eval_interval = cfg.training.eval_interval
+learning_rate = cfg.training.learning_rate
+device = resolve_device(cfg)
+n_embd = cfg.model.n_embd
+n_head = cfg.model.n_head
+n_layer = cfg.model.n_layer
+dropout = cfg.model.dropout
+eval_iters = cfg.training.eval_iters
+checkpoint_interval = cfg.training.checkpoint_interval
 
 # Load dataset
 with open(DATASET_FILE, 'rb') as f:
@@ -63,7 +78,7 @@ print(f"Parameters: {sum(p.numel() for p in model.parameters())/1e6:.2f}M")
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
 @torch.no_grad()
-def estimate_loss(split, eval_iters=10):
+def estimate_loss(split, eval_iters=eval_iters):
     model.eval()
     indices = train_idx if split == 'train' else val_idx
     losses = []
@@ -149,8 +164,8 @@ for epoch in range(max_epochs):
             }, best_path)
             print(f"  -> New best model! (val_loss: {best_val_loss:.4f})")
 
-    # Test generation on val example every 50 epochs
-    if epoch % 50 == 0 and len(val_idx) > 0:
+    # Test generation on val example
+    if epoch % checkpoint_interval == 0 and len(val_idx) > 0:
         model.eval()
         test_idx = val_idx[0]
         enc_tensor = torch.tensor([enc_inputs[test_idx]], dtype=torch.long, device=device)

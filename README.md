@@ -67,21 +67,24 @@ Construit `data/processed/seq2seq_dataset.pkl` (entrées encodées, tokenizer, i
 ### 2. Entraîner
 
 ```bash
+# Utiliser la configuration par défaut
 python src/train_seq2seq.py
+
+# Ou spécifier une configuration personnalisée
+python src/train_seq2seq.py --config configs/ma_config.yaml
 ```
 
-Hyperparamètres par défaut (modifiables en tête de fichier) :
+Les hyperparamètres sont définis dans `configs/seq2seq.yaml` (modifiable).
 
-| Paramètre | Valeur |
-|---|---|
-| `n_embd` / `n_head` / `n_layer` | 128 / 4 / 3 |
-| `block_size` | 1024 |
-| `batch_size` | 2 |
-| `max_epochs` | 500 |
-| `learning_rate` | 1e-3 (AdamW) |
-| `dropout` | 0.2 |
+| Paramètre clé | Valeur par défaut | Description |
+|---|---|---|
+| `model.n_embd` / `n_head` / `n_layer` | 128 / 4 / 3 | Architecture du Transformer |
+| `model.block_size` | 1024 | Taille du contexte maximal |
+| `training.batch_size` | 2 | Séquences en parallèle |
+| `training.max_epochs` | 500 | Nombre d'epochs |
+| `training.learning_rate` | 0.001 | Taux d'apprentissage (AdamW) |
 
-Checkpoints : `checkpoints/seq2seq_epoch_NNNN.pt` (tous les 10 epochs) et `checkpoints/seq2seq_best.pt` (meilleure loss de validation).
+Checkpoints : `checkpoints/seq2seq_epoch_NNNN.pt` (selon `training.checkpoint_interval`) et `checkpoints/seq2seq_best.pt` (meilleure loss de validation).
 
 ### 3. Convertir du MQL4
 
@@ -127,6 +130,8 @@ src/
 │   └── gpt.py              # GPT char-level (baseline)
 ├── tokenizers/
 │   └── mql_tokenizer.py    # Tokenizer regex niveau token (~343 tokens, <PAD>/<SOS>/<EOS>/<UNK>)
+├── utils/
+│   └── config.py           # Chargeur de configuration YAML
 ├── train_seq2seq.py        # Entraînement Seq2Seq
 ├── train.py                # Entraînement GPT (legacy)
 └── scripts/
@@ -139,9 +144,40 @@ data/
 ├── raw/                    # Paires JSONL + fichiers .mq4/.mq5 d'exemple
 └── processed/              # seq2seq_dataset.pkl, train.txt, val.txt
 checkpoints/                # seq2seq_best.pt, seq2seq_epoch_*.pt (gitignoré)
-configs/                    # configs T5 obsolètes (non utilisées par le code actuel)
+configs/
+├── seq2seq.yaml            # Configuration du pipeline Seq2Seq
+├── gpt.yaml                # Configuration du pipeline GPT (legacy)
+└── default.yaml            # Config T5 obsolète (non utilisée)
 tests/                      # tests (pytest)
 ```
+
+---
+
+## Configuration
+
+Tous les scripts de préparation et d'entraînement lisent leurs hyperparamètres depuis un fichier YAML via le flag `--config` (chemin relatif à la racine du projet).
+
+| Fichier | Pipeline | Scripts concernés |
+|---|---|---|
+| `configs/seq2seq.yaml` | Seq2Seq (recommandé) | `prepare_seq2seq_data.py`, `train_seq2seq.py`, `convert_mql4_seq2seq.py` |
+| `configs/gpt.yaml` | GPT char-level (legacy) | `prepare_conversion_data.py`, `train.py`, `convert_mql4.py` |
+
+Exemple d'utilisation avec une config personnalisée :
+
+```bash
+python src/train_seq2seq.py --config configs/seq2seq.yaml
+```
+
+Les sections du YAML :
+
+- `seed` — seed unique pour `torch` et `random`
+- `device` — `"auto"` (détection CUDA), `"cpu"` ou `"cuda"`
+- `data.*` — chemins des données et des checkpoints
+- `preprocessing.*` — split train/val, délimiteurs
+- `model.*` — architecture (n_embd, n_head, n_layer, dropout, block_size)
+- `training.*` — hyperparamètres d'entraînement (batch_size, lr, etc.)
+
+Tous les chemins dans le YAML sont relatifs à la racine du projet et résolus automatiquement.
 
 ---
 
@@ -149,8 +185,8 @@ tests/                      # tests (pytest)
 
 - Le split train/validation est aléatoire (seed 42) ; idéalement il faudrait un split par famille de code pour éviter les fuites.
 - Les checkpoints `seq2seq_epoch_*.pt` (~78 Mo chacun) sont volumineux ; le dépôt utilise Git LFS.
-- `configs/default.yaml` (config T5) est obsolète : les hyperparamètres sont définis dans les scripts d'entraînement.
-- La collecte GitHub (`data/raw/mql_dataset_collected.jsonl`) est vide ; `collect_mql_dataset.py` est fourni mais il faut vérifier les licences avant réutilisation.
+- `configs/default.yaml` (config T5) est obsolète : utiliser `configs/seq2seq.yaml` ou `configs/gpt.yaml` à la place.
+- Tous les scripts d'entraînement et de préparation acceptent `--config <chemin>` pour utiliser une configuration personnalisée.
 
 ## Licence
 

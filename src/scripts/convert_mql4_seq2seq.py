@@ -1,14 +1,33 @@
 import os
 import sys
+import pickle
+import argparse
 import torch
 
+# Ajouter la racine du projet au path avant les imports locaux
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-SRC_DIR = os.path.dirname(SCRIPT_DIR)
-PROJECT_ROOT = os.path.dirname(SRC_DIR)
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
+sys.path.insert(0, _PROJECT_ROOT)
+
+from src.utils.config import load_config
+
+parser = argparse.ArgumentParser(description='Convert MQL4 to MQL5 using Seq2Seq')
+parser.add_argument('checkpoint_path', help='Path to model checkpoint (.pt)')
+parser.add_argument('mql4_input', nargs='?', default=None,
+                    help='MQL4 code string or path to .mq4 file')
+parser.add_argument('--config', default='configs/seq2seq.yaml',
+                    help='Path to YAML config file (default: configs/seq2seq.yaml)')
+args = parser.parse_args()
+
+cfg = load_config(args.config)
+PROJECT_ROOT = cfg._project_root
 sys.path.insert(0, PROJECT_ROOT)
 
 from src.models.seq2seq import Seq2SeqTransformer
 from src.tokenizers.mql_tokenizer import MQLTokenizer, EOS_IDX, SOS_IDX, PAD_IDX
+
+
+DATASET_FILE = cfg.data.output_pkl
 
 
 def load_checkpoint(checkpoint_path, device):
@@ -52,21 +71,16 @@ def convert_mql4(model, tokenizer, mql4_code, device, max_new_tokens=500):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("Usage: python convert_mql4_seq2seq.py <checkpoint_path> [mql4_code_or_file]")
-        sys.exit(1)
-
-    checkpoint_path = sys.argv[1]
+    checkpoint_path = args.checkpoint_path
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    DATASET_FILE = os.path.join(PROJECT_ROOT, "data", "processed", "seq2seq_dataset.pkl")
     tokenizer = load_tokenizer(DATASET_FILE)
 
     model, block_size = load_checkpoint(checkpoint_path, device)
     print(f"Model loaded: vocab={tokenizer.vocab_size}, block_size={block_size}, device={device}")
 
-    if len(sys.argv) > 2:
-        input_arg = sys.argv[2]
+    if args.mql4_input:
+        input_arg = args.mql4_input
         if os.path.isfile(input_arg):
             with open(input_arg, 'r', encoding='utf-8') as f:
                 mql4_code = f.read()
