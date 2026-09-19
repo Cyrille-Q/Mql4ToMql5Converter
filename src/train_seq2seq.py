@@ -21,7 +21,7 @@ os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
 # Hyperparameters
 batch_size = 2
-block_size = 512
+block_size = 1024
 max_epochs = 500
 eval_interval = 10
 learning_rate = 1e-3

@@ -13,7 +13,7 @@ from src.tokenizers.mql_tokenizer import MQLTokenizer, SOS_IDX, EOS_IDX
 
 random.seed(42)
 
-INPUT_JSONL = os.path.join(PROJECT_ROOT, "data/raw/mql_dataset_manual.jsonl")
+INPUT_JSONL = os.path.join(PROJECT_ROOT, "data/raw/mql_all_936.jsonl")
 OUTPUT_FILE = os.path.join(PROJECT_ROOT, "data/processed/seq2seq_dataset.pkl")
 
 os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
