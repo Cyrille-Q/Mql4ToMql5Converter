@@ -5,9 +5,6 @@ description = "Language model for converting MQL4 to MQL5 and vice versa"
 requires-python = ">=3.10"
 dependencies = [
     "torch>=2.0",
-    "transformers>=4.30",
-    "datasets>=2.12",
-    "tokenizers>=0.14",
     "pyyaml>=6.0",
 ]
 
@@ -16,9 +13,6 @@ dev = [
     "pytest>=7.0",
     "ruff>=0.7",
     "mypy>=1.0",
-    "jupyter",
-    "ipykernel",
-    "wandb",
 ]
 
 [tool.ruff]
