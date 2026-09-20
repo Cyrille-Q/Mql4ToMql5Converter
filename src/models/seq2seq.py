@@ -42,7 +42,11 @@ class DecoderHead(nn.Module):
         q = self.query(x)
         v = self.value(x)
         wei = q @ k.transpose(-2, -1) * (C ** -0.5)
-        wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf'))
+        if T > self.tril.shape[0]:
+            tril = torch.tril(torch.ones(T, T, device=x.device))
+        else:
+            tril = self.tril[:T, :T]
+        wei = wei.masked_fill(tril == 0, float('-inf'))
         wei = F.softmax(wei, dim=-1)
         wei = self.dropout(wei)
         out = wei @ v
@@ -190,6 +194,11 @@ class Seq2SeqTransformer(nn.Module):
     def _embed(self, x):
         B, T = x.shape
         tok_emb = self.token_embedding(x)
+        if T > self.position_embedding.num_embeddings:
+            new_emb = nn.Embedding(T, self.position_embedding.embedding_dim, device=x.device)
+            n_old = self.position_embedding.num_embeddings
+            new_emb.weight.data[:n_old] = self.position_embedding.weight.data
+            self.position_embedding = new_emb
         pos_emb = self.position_embedding(torch.arange(T, device=x.device))
         return tok_emb + pos_emb
 
