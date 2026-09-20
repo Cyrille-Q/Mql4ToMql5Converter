@@ -27,7 +27,7 @@ preprocessing:
 model:
   n_embd: 128       # dimension des embeddings
   n_head: 4         # nombre de têtes d'attention par bloc
-  n_layer: 3        # nombre de blocs encodeur/décodeur
+  n_layer: 4        # nombre de blocs encodeur/décodeur
   dropout: 0.2      # taux de dropout
   # Taille du contexte maximal (block_size) :
   # Le modèle considère au plus block_size tokens comme contexte.
@@ -39,9 +39,9 @@ training:
   # Nombre de séquences indépendantes traitées en parallèle.
   # Une batch_size plus grande permet des gradients plus stables
   # mais nécessite plus de mémoire GPU.
-  batch_size: 2
-  max_epochs: 3
+  batch_size: 15
+  max_epochs: 240
   eval_interval: 10      # évaluer la loss tous les N epochs
   eval_iters: 10          # nombre de batches pour estimer la loss
-  learning_rate: 0.001
+  learning_rate: 0.0005
   checkpoint_interval: 10 # sauvegarder un checkpoint tous les N epochs

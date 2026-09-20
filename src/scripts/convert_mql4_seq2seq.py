@@ -32,19 +32,36 @@ DATASET_FILE = cfg.data.output_pkl
 
 def load_checkpoint(checkpoint_path, device):
     checkpoint = torch.load(checkpoint_path, map_location=device)
+    sd = checkpoint['model_state_dict']
+    pos_emb_key = 'position_embedding.weight'
+    actual_block_size = sd[pos_emb_key].shape[0]
     model = Seq2SeqTransformer(
         vocab_size=checkpoint['vocab_size'],
         n_embd=checkpoint['n_embd'],
-        block_size=checkpoint['block_size'],
+        block_size=actual_block_size,
         n_head=checkpoint['n_head'],
         n_layer=checkpoint['n_layer'],
         dropout=checkpoint.get('dropout', 0.2),
         pad_idx=PAD_IDX,
     )
-    model.load_state_dict(checkpoint['model_state_dict'])
+
+    model_state = model.state_dict()
+    for key in list(sd.keys()):
+        if key.endswith('.tril'):
+            sd.pop(key, None)
+            continue
+        if sd[key].shape != model_state[key].shape:
+            sd.pop(key, None)
+
+    missing, unexpected = model.load_state_dict(sd, strict=False)
+    if missing:
+        print(f"  [load] missing keys (re-initialized): {missing}")
+    if unexpected:
+        print(f"  [load] unexpected keys (skipped): {unexpected}")
+
     model = model.to(device)
     model.eval()
-    return model, checkpoint['block_size']
+    return model, actual_block_size
 
 
 def load_tokenizer(dataset_path):
