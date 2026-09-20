@@ -10,13 +10,15 @@ UNK_IDX = 3
 
 TOKEN_PATTERN = re.compile(
     r'[a-zA-Z_]\w*'       # keywords & identifiers
-    r'|-?\d+\.?\d*'        # numbers (int & float)
+    r'|0x[0-9a-fA-F]+'    # hex literals (0xFF)
+    r'|\d'                # individual digits (digit-level numbers)
     r'|"[^"]*"'            # double-quoted strings
     r"|'[^']*'"            # single-quoted strings
-    r'|//[^\n]*'           # single-line comments
-    r'|/\*.*?\*/'          # multi-line comments
-    r'|\s+'                # whitespace (preserves formatting)
-    r'|\S'                 # any other non-whitespace char
+    r'|//'                # single-line comment marker
+    r'|/\*'               # block comment open
+    r'|\*/'               # block comment close
+    r'|\s+'               # whitespace (preserves formatting)
+    r'|\S'                # any other non-whitespace char
 )
 
 
