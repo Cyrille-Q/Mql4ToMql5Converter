@@ -76,6 +76,7 @@ MQL5 output
 | `data/processed/val.txt` | ~46 lignes, idem (LFS, GPT legacy) |
 | `configs/seq2seq.yaml` | Configuration YAML du pipeline Seq2Seq |
 | `configs/gpt.yaml` | Configuration YAML du pipeline GPT (legacy) |
+| `src.scripts.debug_seq2seq_data` | *(exécutable)* | Debug dataset : inspecte les tokens de chaque paire |
 
 ## Commands
 
@@ -97,6 +98,12 @@ python src/scripts/convert_mql4_seq2seq.py checkpoints/seq2seq_best.pt "#propert
 # Génération de données synthétiques (CWD)
 python src/scripts/mql4_generate.py
 python src/scripts/mql4_convert.py
+
+# === Debug / Inspection du Dataset ===
+python src/scripts/debug_seq2seq_data.py --config configs/seq2seq.yaml
+python src/scripts/debug_seq2seq_data.py --config configs/seq2seq.yaml --index 0 --show-meta --show-code --raw-ids
+python src/scripts/debug_seq2seq_data.py --config configs/seq2seq.yaml --range 100 105 --mode enc --raw-ids
+python src/scripts/debug_seq2seq_data.py --config configs/seq2seq.yaml --index 0 --alignment --show-meta
 
 # Lint & typecheck (⚠️ requis: pip install -e ".[dev]", non installé dans venv_mq4mq5/ par défaut)
 ruff check .
