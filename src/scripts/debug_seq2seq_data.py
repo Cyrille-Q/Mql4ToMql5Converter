@@ -30,6 +30,8 @@ parser.add_argument('--show-meta', action='store_true',
                     help='Show category and complexity metadata')
 parser.add_argument('--raw-ids', action='store_true',
                     help='Show raw ID lists in addition to detailed table')
+parser.add_argument('--alignment', action='store_true',
+                    help='Show teacher-forcing alignment (dec_inputs vs labels side-by-side)')
 args = parser.parse_args()
 
 cfg = load_config(args.config)
@@ -110,6 +112,50 @@ def print_token_table(tokenizer, ids, show_raw_ids=False):
         print(f" IDs: {ids}")
     print()
 
+def format_short(tok, max_len=20):
+    cell = format_token_cell(tok)
+    if len(cell) > max_len:
+        cell = cell[:max_len-3] + '...'
+    return cell
+
+def print_alignment(tokenizer, dec_ids, lab_ids):
+    print(" Alignment (teacher forcing) : chaque position du decodeur predit la position suivante")
+    print(f" {'Pos':>4} | {'dec_input (entre)':<28} | {'labels (cible)':<28} | note")
+    print(f" {'-'*4}-+-{'-'*28}-+-{'-'*28}-+-{'-'*20}")
+
+    max_rows = max(len(dec_ids), len(lab_ids))
+    for pos in range(max_rows):
+        dec_tok = tokenizer.itos.get(dec_ids[pos], '<UNK>') if pos < len(dec_ids) else ''
+        dec_cell = format_short(dec_tok)
+        dec_suffix = ' ** SPECIAL' if dec_tok in SPECIAL_TOKENS else ''
+
+        lab_tok = tokenizer.itos.get(lab_ids[pos], '<UNK>') if pos < len(lab_ids) else ''
+        lab_cell = format_short(lab_tok)
+        lab_suffix = ' ** SPECIAL' if lab_tok in SPECIAL_TOKENS else ''
+
+        note = ''
+        if pos == 0:
+            note = '<-- amorce'
+        elif pos == len(lab_ids) - 1 and lab_tok in SPECIAL_TOKENS:
+            note = '<-- fin'
+
+        print(f" {pos:>4} | {dec_cell:<28} | {lab_cell:<28} | {note}")
+
+    print()
+    print(" Schema :")
+    print("   dec_input = [<SOS>,       mql5_ids              ]")
+    print("   labels    = [           mql5_ids,       <EOS>   ]")
+    print("                dec_input[pos] predit labels[pos] a chaque position")
+    print()
+
+def print_legend():
+    print(" Legende des sequences :")
+    print("   enc_inputs  = [tokens MQL4 bruts]                <- pas de <SOS>/<EOS>")
+    print("   dec_inputs  = [<SOS>, tokens MQL5]              <- entree du decodeur")
+    print("   labels      = [tokens MQL5, <EOS>]              <- cible decalee (+1)")
+    print("   Les tokens <PAD> (id=0) sont ajoutes au moment du batching uniquement")
+    print()
+
 print(f"Loading dataset from: {PKL_PATH}")
 with open(PKL_PATH, 'rb') as f:
     dataset = pickle.load(f)
@@ -123,6 +169,9 @@ train_idx = set(dataset['train_idx'])
 print(f"Loaded {len(enc_inputs)} pairs, vocab_size={tokenizer.vocab_size}")
 print(f"Train: {len(train_idx)} / Val: {len(dataset['val_idx'])}")
 print()
+
+if args.alignment:
+    print_legend()
 
 metadata = load_metadata(JSONL_PATH) if args.show_meta else None
 
@@ -168,3 +217,9 @@ for i in indices:
     if args.mode in ('labels', 'all'):
         print_header(f"Labels (MQL5 + EOS)", i, len(labels[i]), is_train, meta)
         print_token_table(tokenizer, labels[i], args.raw_ids)
+
+    if args.alignment and args.mode in ('dec', 'labels', 'all'):
+        print_separator('-')
+        print(f" Decoder alignment (pair #{i})")
+        print_separator('-')
+        print_alignment(tokenizer, dec_inputs[i], labels[i])
