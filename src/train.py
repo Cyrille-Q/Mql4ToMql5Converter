@@ -1,7 +1,9 @@
 # let's now encode the entire text dataset and store it into a torch.Tensor
+import argparse
 import os
 import sys
-import argparse
+from typing import Any
+
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -13,12 +15,20 @@ _PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, _PROJECT_ROOT)
 
 from src.utils.config import load_config, resolve_device
+from src.utils import metrics
+
+try:
+    from tqdm import tqdm
+except ImportError:
+    tqdm = None
 
 parser = argparse.ArgumentParser(description='Train GPT char-level model')
 parser.add_argument('--config', default='configs/gpt.yaml',
                     help='Path to YAML config file (default: configs/gpt.yaml)')
 parser.add_argument('--resume', default=None,
                     help='Path to a .pt checkpoint to resume training from')
+parser.add_argument('--verbose', action='store_true',
+                    help='Afficher le test de génération final à l\'écran')
 args = parser.parse_args()
 
 cfg = load_config(args.config)
@@ -143,14 +153,21 @@ if __name__ == '__main__':
     # Training loop
     train_losses = []
     val_losses = []
-    
-    for iter in range(start_iter, max_iters):
+    history = []
+
+    iters: Any = range(start_iter, max_iters)
+    if tqdm is not None:
+        iters = tqdm(iters, desc="train")
+    for iter in iters:
 
         # every once in a while evaluate the loss on train and val sets
         if iter % eval_interval == 0 or iter == max_iters - 1:
             losses = estimate_loss()
             train_losses.append(losses['train'])
             val_losses.append(losses['val'])
+            history.append({'iter': iter,
+                            'train_loss': losses['train'].item(),
+                            'val_loss': losses['val'].item()})
             print(f"step {iter}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
 
             # Sauvegarde checkpoint régulier
@@ -194,18 +211,33 @@ if __name__ == '__main__':
         xb, yb = get_batch('train', batch_size, block_size)
 
         # Forward & backward
-        logits, loss = model(xb, yb)
+        _, loss = model(xb, yb)
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
 
-    # Test generation with a prompt
-    test_prompt = "MQL4: #property strict\nextern int Period=14;\nvoid OnTick(){}\n\nMQL5:"
-    context = torch.tensor([encode(test_prompt)], dtype=torch.long, device=device)
-    generated = model.generate(context, max_new_tokens=500)[0].tolist()
-    output = decode(generated)
-    # Stop at end token
-    if END_TOKEN in output:
-        output = output.split(END_TOKEN)[0] + END_TOKEN
-    print("\n=== Generation test ===")
-    print(output)    
+        if tqdm is not None:
+            iters.set_postfix(loss=f"{loss.item():.4f}")
+
+    # Test generation with a prompt (only in verbose mode)
+    if args.verbose:
+        test_prompt = "MQL4: #property strict\nextern int Period=14;\nvoid OnTick(){}\n\nMQL5:"
+        context = torch.tensor([encode(test_prompt)], dtype=torch.long, device=device)
+        generated = model.generate(context, max_new_tokens=500)[0].tolist()
+        output = decode(generated)
+        # Stop at end token
+        if END_TOKEN in output:
+            output = output.split(END_TOKEN)[0] + END_TOKEN
+        print("\n=== Generation test ===")
+        print(output)
+
+    # Export metrics (loss history)
+    history_csv = os.path.join(CHECKPOINT_DIR, "gpt_loss_history.csv")
+    metrics.write_history_csv(history_csv, history, ['iter', 'train_loss', 'val_loss'])
+    print(f"Loss history saved to {history_csv}")
+    history_json = os.path.join(CHECKPOINT_DIR, "gpt_loss_history.json")
+    metrics.write_history_json(history_json, history)
+    print(f"Loss history saved to {history_json}")
+    curve_path = os.path.join(CHECKPOINT_DIR, "gpt_loss_curve.png")
+    if metrics.plot_history(curve_path, history):
+        print(f"Loss curve saved to {curve_path}")    

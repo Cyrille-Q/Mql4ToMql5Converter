@@ -1,7 +1,9 @@
-import os
-import sys
-import pickle
 import argparse
+import os
+import pickle
+import sys
+from typing import Any
+
 import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pad_sequence
@@ -12,12 +14,21 @@ _PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, _PROJECT_ROOT)
 
 from src.utils.config import load_config, resolve_device
+from src.utils import metrics
+
+try:
+    from tqdm import tqdm
+except ImportError:
+    tqdm = None
 
 parser = argparse.ArgumentParser(description='Train Seq2Seq model')
 parser.add_argument('--config', default='configs/seq2seq.yaml',
                     help='Path to YAML config file (default: configs/seq2seq.yaml)')
 parser.add_argument('--resume', default=None,
                     help='Path to a .pt checkpoint to resume training from')
+parser.add_argument('--verbose', action='store_true',
+                    help='Afficher le test de génération à chaque checkpoint'
+                         ' (plus de détails à l\'écran)')
 args = parser.parse_args()
 
 cfg = load_config(args.config)
@@ -134,6 +145,7 @@ def estimate_loss(split, eval_iters=eval_iters):
 # Training loop
 train_losses = []
 val_losses = []
+history = []
 
 for epoch in range(start_epoch, max_epochs):
     # Shuffle training indices
@@ -144,12 +156,16 @@ for epoch in range(start_epoch, max_epochs):
     epoch_loss = 0
     num_batches = 0
 
-    for i in range(0, len(epoch_indices), batch_size):
+    batches: Any = range(0, len(epoch_indices), batch_size)
+    if tqdm is not None:
+        batches = tqdm(batches, desc=f"epoch {epoch:3d}", leave=False)
+
+    for i in batches:
         batch_indices = epoch_indices[i:i + batch_size]
         enc_input, dec_input, lbl = collate_batch(batch_indices)
         enc_input, dec_input, lbl = enc_input.to(device), dec_input.to(device), lbl.to(device)
 
-        logits, loss = model(enc_input, dec_input, lbl)
+        _, loss = model(enc_input, dec_input, lbl)
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
@@ -157,14 +173,18 @@ for epoch in range(start_epoch, max_epochs):
         epoch_loss += loss.item()
         num_batches += 1
         step += 1
+        if tqdm is not None:
+            batches.set_postfix(loss=f"{loss.item():.4f}")
 
     avg_train_loss = epoch_loss / num_batches
 
-    # Eval
+    # Summary train loss each epoch + eval (val loss) every eval_interval epochs
     if epoch % eval_interval == 0 or epoch == max_epochs - 1:
         avg_val_loss = estimate_loss('val')
         train_losses.append(avg_train_loss)
         val_losses.append(avg_val_loss)
+        history.append({'epoch': epoch, 'train_loss': avg_train_loss,
+                        'val_loss': avg_val_loss, 'step': step})
         print(f"epoch {epoch:3d} | train loss {avg_train_loss:.4f} | val loss {avg_val_loss:.4f} | step {step}")
 
         # Save checkpoint
@@ -202,17 +222,30 @@ for epoch in range(start_epoch, max_epochs):
             }, best_path)
             print(f"  -> New best model! (val_loss: {best_val_loss:.4f})")
 
-    # Test generation on val example
-    if epoch % checkpoint_interval == 0 and len(val_idx) > 0:
-        model.eval()
-        test_idx = val_idx[0]
-        enc_tensor = torch.tensor([enc_inputs[test_idx]], dtype=torch.long, device=device)
-        gen_ids = model.generate(enc_tensor, max_new_tokens=300, eos_token=EOS_IDX, sos_token=SOS_IDX)
-        generated = tokenizer.decode(gen_ids)
-        expected = tokenizer.decode(dec_inputs[test_idx][1:] + [EOS_IDX])
-        print(f"\n  === Generation test (epoch {epoch}) ===")
-        print(f"  Generated (first 100 chars): {generated[:100]}")
-        print(f"  Expected  (first 100 chars): {expected[:100]}")
-        print()
+        # Test generation on val example (only in verbose mode)
+        if args.verbose and len(val_idx) > 0:
+            model.eval()
+            test_idx = val_idx[0]
+            enc_tensor = torch.tensor([enc_inputs[test_idx]], dtype=torch.long, device=device)
+            gen_ids = model.generate(enc_tensor, max_new_tokens=300, eos_token=EOS_IDX, sos_token=SOS_IDX)
+            generated = tokenizer.decode(gen_ids)
+            expected = tokenizer.decode(dec_inputs[test_idx][1:] + [EOS_IDX])
+            print(f"\n  === Generation test (epoch {epoch}) ===")
+            print(f"  Generated (first 100 chars): {generated[:100]}")
+            print(f"  Expected  (first 100 chars): {expected[:100]}")
+            print()
+    else:
+        print(f"epoch {epoch:3d} | train loss {avg_train_loss:.4f} | step {step}")
+
+# Export metrics (loss history)
+history_csv = os.path.join(CHECKPOINT_DIR, "seq2seq_loss_history.csv")
+metrics.write_history_csv(history_csv, history, ['epoch', 'train_loss', 'val_loss', 'step'])
+print(f"Loss history saved to {history_csv}")
+history_json = os.path.join(CHECKPOINT_DIR, "seq2seq_loss_history.json")
+metrics.write_history_json(history_json, history)
+print(f"Loss history saved to {history_json}")
+curve_path = os.path.join(CHECKPOINT_DIR, "seq2seq_loss_curve.png")
+if metrics.plot_history(curve_path, history):
+    print(f"Loss curve saved to {curve_path}")
 
 print(f"\nTraining complete. Best val loss: {best_val_loss:.4f}")

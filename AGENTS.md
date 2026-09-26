@@ -87,12 +87,14 @@ pip install -e ".[dev]"
 # === GPT char-level (legacy) ===
 python src/scripts/prepare_conversion_data.py --config configs/gpt.yaml
 python src/train.py --config configs/gpt.yaml
+python src/train.py --config configs/gpt.yaml --verbose           # + test de génération final
 python src/train.py --config configs/gpt.yaml --resume checkpoints/checkpoint_iter_002000.pt  # reprise d'entraînement
 python src/scripts/convert_mql4.py checkpoints/best_model.pt fichier.mq4 --config configs/gpt.yaml
 
 # === Seq2Seq token-level ===
 python src/scripts/prepare_seq2seq_data.py --config configs/seq2seq.yaml
 python src/train_seq2seq.py --config configs/seq2seq.yaml
+python src/train_seq2seq.py --config configs/seq2seq.yaml --verbose           # + test de génération à chaque checkpoint
 python src/train_seq2seq.py --config configs/seq2seq.yaml --resume checkpoints/seq2seq_epoch_0040.pt  # reprise d'entraînement
 python src/scripts/convert_mql4_seq2seq.py checkpoints/seq2seq_best.pt fichier.mq4 --config configs/seq2seq.yaml
 python src/scripts/convert_mql4_seq2seq.py checkpoints/seq2seq_best.pt "#property strict\nextern int P=14;" --config configs/seq2seq.yaml
@@ -107,14 +109,30 @@ python src/scripts/debug_seq2seq_data.py --config configs/seq2seq.yaml --index 0
 python src/scripts/debug_seq2seq_data.py --config configs/seq2seq.yaml --range 100 105 --mode enc --raw-ids
 python src/scripts/debug_seq2seq_data.py --config configs/seq2seq.yaml --index 0 --alignment --show-meta
 
-# Lint & typecheck (⚠️ requis: pip install -e ".[dev]", non installé dans venv_mq4mq5/ par défaut)
+# Lint & typecheck (⚠️ requis: pip install -e ".[dev]", non installé dans .venv/ par défaut)
 ruff check .
 ruff format . --check
 mypy src/
 pytest
 ```
 
-**Remarque** : le venv actif est `venv_mq4mq5/` (non encore dans `.gitignore`). Les dépendances `[dev]` (ruff, mypy, pytest) n'y sont pas installées. Les outils de lint/typecheck ne sont pas exécutables avant leur installation.
+**Remarque** : le venv actif est `.venv/` (non encore dans `.gitignore`). Les dépendances `[dev]` (ruff, mypy, pytest) n'y sont pas installées. Les outils de lint/typecheck ne sont pas exécutables avant leur installation. `tqdm` est installé (barre de progression) ; `matplotlib` est optionnel (courbe de loss générée seulement s'il est présent).
+
+## Suivi de l'apprentissage (affichage écran)
+
+Les deux entraîneurs suivent l'évolution de la loss via :
+
+- **Barre de progression `tqdm`** sur la boucle d'entraînement (loss courante en `postfix`). Désactivée automatiquement si `tqdm` n'est pas installé.
+- **Ligne de résumé** : loss de train affichée à **chaque époque** (ou itération), loss de val + sauvegarde checkpoint tous les `eval_interval`.
+  - Seq2Seq : `epoch  N | train loss X | val loss Y | step N` (val/checkpoint aux époques `% eval_interval`).
+  - GPT : `step N: train loss X, val loss Y` (toutes les `eval_interval` itérations).
+- **`--verbose`** : détail supplémentaire — test de génération à chaque checkpoint (Seq2Seq) ou final (GPT).
+- **Export d'historique** en fin d'entraînement (dans `checkpoints/`) :
+  - `seq2seq_loss_history.csv/json` + `seq2seq_loss_curve.png` (Seq2Seq)
+  - `gpt_loss_history.csv/json` + `gpt_loss_curve.png` (GPT)
+  - La courbe (`png`) n'est produite que si `matplotlib` est installé.
+
+Implémentation : `src/utils/metrics.py` (export CSV/JSON + courbe, dépendances optionnelles).
 
 ## Conventions
 

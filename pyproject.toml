@@ -23,6 +23,8 @@ dev = [
     "pytest>=7.0",
     "ruff>=0.7",
     "mypy>=1.0",
+    "tqdm>=4.0",
+    "matplotlib>=3.0",
 ]
 
 [tool.ruff]
