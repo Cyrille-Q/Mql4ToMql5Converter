@@ -143,6 +143,26 @@ def estimate_loss(split, eval_iters=eval_iters):
     model.train()
     return sum(losses) / len(losses)
 
+@torch.no_grad()
+def show_generation_test(split, indices, epoch):
+    """Affiche Generated vs Expected sur un exemple aléatoire d'un split."""
+    if not indices:
+        return
+    model.eval()
+    test_idx = indices[torch.randint(len(indices), (1,)).item()]
+    enc_tensor = torch.tensor([enc_inputs[test_idx]], dtype=torch.long, device=device)
+    nb_exp = len(dec_inputs[test_idx]) - 1  # tokens attendus (hors SOS)
+    max_start = max(nb_exp - NB_TOKENS, 0)
+    start = int(torch.randint(max_start + 1, (1,)).item())
+    gen_ids = model.generate(enc_tensor, max_new_tokens=start + NB_TOKENS,
+                             eos_token=EOS_IDX, sos_token=SOS_IDX)
+    gen_tokens = gen_ids[1 + start:1 + start + NB_TOKENS]
+    exp_tokens = dec_inputs[test_idx][1 + start:1 + start + NB_TOKENS]
+    print(f"\n  === Generation test ({split}, epoch {epoch}, "
+          f"example {test_idx}, start {start}) ===")
+    print(f"  Generated: {tokenizer.decode(gen_tokens)}")
+    print(f"  Expected : {tokenizer.decode(exp_tokens)}")
+
 # Training loop
 train_losses = []
 val_losses = []
@@ -223,23 +243,10 @@ for epoch in range(start_epoch, max_epochs):
             }, best_path)
             print(f"  -> New best model! (val_loss: {best_val_loss:.4f})")
 
-        # Test generation on a random training example (only in verbose mode)
-        if args.verbose and len(train_idx) > 0:
-            model.eval()
-            test_idx = train_idx[torch.randint(len(train_idx), (1,)).item()]
-            enc_tensor = torch.tensor([enc_inputs[test_idx]], dtype=torch.long, device=device)
-            nb_exp = len(dec_inputs[test_idx]) - 1  # tokens attendus (hors SOS)
-            max_start = max(nb_exp - NB_TOKENS, 0)
-            start = int(torch.randint(max_start + 1, (1,)).item())
-            gen_ids = model.generate(enc_tensor, max_new_tokens=start + NB_TOKENS,
-                                     eos_token=EOS_IDX, sos_token=SOS_IDX)
-            gen_tokens = gen_ids[1 + start:1 + start + NB_TOKENS]
-            exp_tokens = dec_inputs[test_idx][1 + start:1 + start + NB_TOKENS]
-            print(f"\n  === Generation test (epoch {epoch}, train example {test_idx}, "
-                  f"start {start}) ===")
-            print(f"  Generated: {tokenizer.decode(gen_tokens)}")
-            print(f"  Expected : {tokenizer.decode(exp_tokens)}")
-            print()
+        # Test generation on the train and validation splits (only in verbose mode)
+        if args.verbose:
+            show_generation_test("train", train_idx, epoch)
+            show_generation_test("val", val_idx, epoch)
     else:
         print(f"epoch {epoch:3d} | train loss {avg_train_loss:.4f} | step {step}")
 
