@@ -87,11 +87,13 @@ pip install -e ".[dev]"
 # === GPT char-level (legacy) ===
 python src/scripts/prepare_conversion_data.py --config configs/gpt.yaml
 python src/train.py --config configs/gpt.yaml
+python src/train.py --config configs/gpt.yaml --resume checkpoints/checkpoint_iter_002000.pt  # reprise d'entraînement
 python src/scripts/convert_mql4.py checkpoints/best_model.pt fichier.mq4 --config configs/gpt.yaml
 
 # === Seq2Seq token-level ===
 python src/scripts/prepare_seq2seq_data.py --config configs/seq2seq.yaml
 python src/train_seq2seq.py --config configs/seq2seq.yaml
+python src/train_seq2seq.py --config configs/seq2seq.yaml --resume checkpoints/seq2seq_epoch_0040.pt  # reprise d'entraînement
 python src/scripts/convert_mql4_seq2seq.py checkpoints/seq2seq_best.pt fichier.mq4 --config configs/seq2seq.yaml
 python src/scripts/convert_mql4_seq2seq.py checkpoints/seq2seq_best.pt "#property strict\nextern int P=14;" --config configs/seq2seq.yaml
 

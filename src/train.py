@@ -17,6 +17,8 @@ from src.utils.config import load_config, resolve_device
 parser = argparse.ArgumentParser(description='Train GPT char-level model')
 parser.add_argument('--config', default='configs/gpt.yaml',
                     help='Path to YAML config file (default: configs/gpt.yaml)')
+parser.add_argument('--resume', default=None,
+                    help='Path to a .pt checkpoint to resume training from')
 args = parser.parse_args()
 
 cfg = load_config(args.config)
@@ -98,13 +100,32 @@ if __name__ == '__main__':
     print(f"Input: {decode(xb[0].tolist())!r}")
     print(f"Target: {decode(yb[0].tolist())!r}")
 
-    # Create model
-    model = gpt.GPTLanguageModel(vocab_size, n_embd, block_size, n_head, n_layer, dropout)
-    model = model.to(device)
-    print(f"Parameters: {sum(p.numel() for p in model.parameters())/1e6:.2f}M")
+    # Model + optimizer: if resuming, hyperparameters from the checkpoint take
+    # precedence over the config so the constructed model matches the checkpoint.
+    best_val_loss = float('inf')
+    start_iter = 0
+    if args.resume:
+        print(f"Loading checkpoint from {args.resume}")
+        ckpt = torch.load(args.resume, map_location=device)
+        model = gpt.GPTLanguageModel(vocab_size, ckpt['n_embd'], ckpt['block_size'],
+                                     ckpt['n_head'], ckpt['n_layer'], ckpt['dropout']).to(device)
+        model.load_state_dict(ckpt['model_state_dict'])
+        optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+        if 'optimizer_state_dict' in ckpt:
+            optimizer.load_state_dict(ckpt['optimizer_state_dict'])
+        else:
+            print("Warning: checkpoint has no optimizer_state_dict -> resuming with a fresh AdamW")
+        start_iter = ckpt.get('iter', -1) + 1
+        best_val_loss = ckpt.get('val_loss', float('inf'))
+        print(f"Resuming from iter {start_iter}, previous best val_loss {best_val_loss:.4f}")
+    else:
+        # Create model
+        model = gpt.GPTLanguageModel(vocab_size, n_embd, block_size, n_head, n_layer, dropout)
+        model = model.to(device)
+        # Optimizer
+        optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
-    # Optimizer
-    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+    print(f"Parameters: {sum(p.numel() for p in model.parameters())/1e6:.2f}M")
     @torch.no_grad()
     def estimate_loss():
         out = {}
@@ -122,9 +143,8 @@ if __name__ == '__main__':
     # Training loop
     train_losses = []
     val_losses = []
-    best_val_loss = float('inf')
     
-    for iter in range(max_iters):
+    for iter in range(start_iter, max_iters):
 
         # every once in a while evaluate the loss on train and val sets
         if iter % eval_interval == 0 or iter == max_iters - 1:

@@ -16,6 +16,8 @@ from src.utils.config import load_config, resolve_device
 parser = argparse.ArgumentParser(description='Train Seq2Seq model')
 parser.add_argument('--config', default='configs/seq2seq.yaml',
                     help='Path to YAML config file (default: configs/seq2seq.yaml)')
+parser.add_argument('--resume', default=None,
+                    help='Path to a .pt checkpoint to resume training from')
 args = parser.parse_args()
 
 cfg = load_config(args.config)
@@ -70,12 +72,50 @@ def collate_batch(indices):
     lbl_pad = pad_sequence(lbl, batch_first=True, padding_value=PAD_IDX)
     return enc_pad, dec_pad, lbl_pad
 
-# Model
-model = Seq2SeqTransformer(vocab_size, n_embd, block_size, n_head, n_layer, dropout, pad_idx=PAD_IDX)
-model = model.to(device)
-print(f"Parameters: {sum(p.numel() for p in model.parameters())/1e6:.2f}M")
+# Training state (possibly overridden below via --resume)
+start_epoch = 0
+step = 0
+best_val_loss = float('inf')
 
-optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+# Model + optimizer: if resuming, hyperparameters from the checkpoint take
+# precedence over the config so the constructed model matches the checkpoint.
+if args.resume:
+    print(f"Loading checkpoint from {args.resume}")
+    ckpt = torch.load(args.resume, map_location=device)
+    n_embd = ckpt['n_embd']
+    n_head = ckpt['n_head']
+    n_layer = ckpt['n_layer']
+    block_size = ckpt['block_size']
+    dropout = ckpt['dropout']
+    if ckpt['vocab_size'] != vocab_size:
+        print(f"Warning: checkpoint vocab_size ({ckpt['vocab_size']}) "
+              f"!= dataset vocab_size ({vocab_size})")
+    model = Seq2SeqTransformer(vocab_size, n_embd, block_size, n_head, n_layer,
+                               dropout, pad_idx=PAD_IDX).to(device)
+    ckpt_pos = ckpt['model_state_dict']['position_embedding.weight'].shape[0]
+    if ckpt_pos != model.position_embedding.num_embeddings:
+        new_emb = nn.Embedding(ckpt_pos, model.position_embedding.embedding_dim,
+                               device=model.position_embedding.weight.device)
+        n_old = min(model.position_embedding.num_embeddings, ckpt_pos)
+        new_emb.weight.data[:n_old] = model.position_embedding.weight.data[:n_old]
+        model.position_embedding = new_emb
+    model.load_state_dict(ckpt['model_state_dict'])
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+    if 'optimizer_state_dict' in ckpt:
+        optimizer.load_state_dict(ckpt['optimizer_state_dict'])
+    else:
+        print("Warning: checkpoint has no optimizer_state_dict -> resuming with a fresh AdamW")
+    start_epoch = ckpt.get('epoch', -1) + 1
+    step = ckpt.get('step', 0)
+    best_val_loss = ckpt.get('val_loss', float('inf'))
+    print(f"Resuming from epoch {start_epoch} (step {step}), "
+          f"previous best val_loss {best_val_loss:.4f}")
+else:
+    model = Seq2SeqTransformer(vocab_size, n_embd, block_size, n_head, n_layer,
+                               dropout, pad_idx=PAD_IDX).to(device)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+
+print(f"Parameters: {sum(p.numel() for p in model.parameters())/1e6:.2f}M")
 
 @torch.no_grad()
 def estimate_loss(split, eval_iters=eval_iters):
@@ -94,10 +134,8 @@ def estimate_loss(split, eval_iters=eval_iters):
 # Training loop
 train_losses = []
 val_losses = []
-best_val_loss = float('inf')
-step = 0
 
-for epoch in range(max_epochs):
+for epoch in range(start_epoch, max_epochs):
     # Shuffle training indices
     epoch_indices = torch.randperm(len(train_idx)).tolist()
     epoch_indices = [train_idx[i] for i in epoch_indices]
