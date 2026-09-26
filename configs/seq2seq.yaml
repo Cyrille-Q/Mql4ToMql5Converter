@@ -40,7 +40,7 @@ training:
   # Une batch_size plus grande permet des gradients plus stables
   # mais nécessite plus de mémoire GPU.
   batch_size: 5
-  max_epochs: 200
+  max_epochs: 20
   eval_interval: 10      # évaluer la loss tous les N epochs
   eval_iters: 10          # nombre de batches pour estimer la loss
   learning_rate: 0.001

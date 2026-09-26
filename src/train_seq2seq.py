@@ -58,6 +58,7 @@ n_layer = cfg.model.n_layer
 dropout = cfg.model.dropout
 eval_iters = cfg.training.eval_iters
 checkpoint_interval = cfg.training.checkpoint_interval
+NB_TOKENS = 80  # tokens générés vs attendus affichés lors du test verbose
 
 # Load dataset
 with open(DATASET_FILE, 'rb') as f:
@@ -222,17 +223,22 @@ for epoch in range(start_epoch, max_epochs):
             }, best_path)
             print(f"  -> New best model! (val_loss: {best_val_loss:.4f})")
 
-        # Test generation on val example (only in verbose mode)
-        if args.verbose and len(val_idx) > 0:
+        # Test generation on a random training example (only in verbose mode)
+        if args.verbose and len(train_idx) > 0:
             model.eval()
-            test_idx = val_idx[0]
+            test_idx = train_idx[torch.randint(len(train_idx), (1,)).item()]
             enc_tensor = torch.tensor([enc_inputs[test_idx]], dtype=torch.long, device=device)
-            gen_ids = model.generate(enc_tensor, max_new_tokens=300, eos_token=EOS_IDX, sos_token=SOS_IDX)
-            generated = tokenizer.decode(gen_ids)
-            expected = tokenizer.decode(dec_inputs[test_idx][1:] + [EOS_IDX])
-            print(f"\n  === Generation test (epoch {epoch}) ===")
-            print(f"  Generated (first 100 chars): {generated[:100]}")
-            print(f"  Expected  (first 100 chars): {expected[:100]}")
+            nb_exp = len(dec_inputs[test_idx]) - 1  # tokens attendus (hors SOS)
+            max_start = max(nb_exp - NB_TOKENS, 0)
+            start = int(torch.randint(max_start + 1, (1,)).item())
+            gen_ids = model.generate(enc_tensor, max_new_tokens=start + NB_TOKENS,
+                                     eos_token=EOS_IDX, sos_token=SOS_IDX)
+            gen_tokens = gen_ids[1 + start:1 + start + NB_TOKENS]
+            exp_tokens = dec_inputs[test_idx][1 + start:1 + start + NB_TOKENS]
+            print(f"\n  === Generation test (epoch {epoch}, train example {test_idx}, "
+                  f"start {start}) ===")
+            print(f"  Generated: {tokenizer.decode(gen_tokens)}")
+            print(f"  Expected : {tokenizer.decode(exp_tokens)}")
             print()
     else:
         print(f"epoch {epoch:3d} | train loss {avg_train_loss:.4f} | step {step}")
