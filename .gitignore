@@ -153,6 +153,7 @@ activemq-data/
 .venv
 env/
 venv/
+venv_mq4mq5/
 ENV/
 env.bak/
 venv.bak/
@@ -213,6 +214,25 @@ tempCodeRunnerFile.py
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ML / Data
+# data/raw/
+# data/processed/
+outputs/
+*.safetensors
+*.pt
+*.pth
+*.bin
+*.onnx
+
+# Logs & experiments
+wandb/
+mlruns/
+lightning_logs/
+tensorboard_logs/
+
+# Config overrides
+configs/local/
 
 # Streamlit
 .streamlit/secrets.toml

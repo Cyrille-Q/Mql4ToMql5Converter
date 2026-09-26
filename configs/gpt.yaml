@@ -1,0 +1,50 @@
+# ──────────────────────────────────────────────
+# GPT char-level pipeline configuration (legacy)
+# ──────────────────────────────────────────────
+# Hyperparamètres commentés pour référence.
+# Tous les chemins sont relatifs à la racine du projet.
+
+# Seed unique pour reproductibilité (torch + random)
+seed: 42
+
+# Périphérique : "auto" (cuda si disponible, sinon cpu), "cpu", "cuda"
+device: auto
+
+# Chemins des données et artefacts
+data:
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  checkpoint_dir: "checkpoints"
+  input_jsonl: "mql_dataset_manual.jsonl"
+  train_file: "train.txt"
+  val_file: "val.txt"
+
+# Prétraitement
+preprocessing:
+  # Proportion des données pour l'entraînement (le reste = validation)
+  train_split: 0.9
+  # Délimiteur de fin de séquence pour le format MQL4: ...\n\nMQL5: ...###
+  end_token: "###"
+
+# Architecture du modèle
+model:
+  n_embd: 128       # dimenion des embeddins
+  n_head: 4         # nombre de têtes d'attention par bloc
+  n_layer: 3        # nombre de blocs Transformer
+  dropout: 0.2      # taux de dropout
+  # Taille du contexte maximal (block_size) :
+  # Le modèle considère au plus block_size tokens comme contexte
+  # pour prédire le token suivant.
+  block_size: 512
+
+# Paramètres d'entraînement
+training:
+  # Nombre de séquences indépendantes traitées en parallèle.
+  # Une batch_size plus grande permet des gradients plus stables
+  # mais nécessite plus de mémoire GPU.
+  batch_size: 2
+  max_iters: 5000
+  eval_interval: 50     # évaluer la loss toutes les N itérations
+  eval_iters: 10        # nombre de batches pour estimer la loss
+  learning_rate: 0.001
+  checkpoint_interval: 50 # sauvegarder un checkpoint toutes les N itérations

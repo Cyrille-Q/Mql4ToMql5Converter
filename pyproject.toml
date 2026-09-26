@@ -1,0 +1,39 @@
+[project]
+name = "mql4-to-mql5-converter"
+version = "0.1.0"
+description = "Language model for converting MQL4 to MQL5 and vice versa"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.0",
+    "pyyaml>=6.0",
+]
+
+[tool.uv.sources]
+torch      = { index = "pytorch-cu124" }
+torchvision = { index = "pytorch-cu124" }
+torchaudio  = { index = "pytorch-cu124" }
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.7",
+    "mypy>=1.0",
+    "tqdm>=4.0",
+    "matplotlib>=3.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
