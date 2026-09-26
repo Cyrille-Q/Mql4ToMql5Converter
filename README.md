@@ -23,7 +23,7 @@ pip install -e .
 pip install -e ".[dev]"
 ```
 
-Le projet embarque un venv prêt à l'emploi : `venv_mq4mq5/` (sans les dépendances de dev).
+Le projet embarque un venv prêt à l'emploi : `.venv/` (sans les dépendances de dev).
 
 ---
 
@@ -37,7 +37,7 @@ Les paires d'entraînement sont au format JSONL avec les champs `mql4` et `mql5`
 | `data/raw/mql_synthetic_900.jsonl` | 900 paires synthétiques | Réserve / augmentation |
 | `data/raw/mql_dataset_manual.jsonl` | 36 paires contrôlées faites main | Pipeline GPT legacy |
 | `data/raw/mql_dataset_collected.jsonl` | Collecte GitHub (vide) | — |
-| `data/raw/*.mq4` / `*.mq5` | 72 fichiers d'exemple (30 paires, 10 catégories) | Lecture / validation |
+| `data/raw/*.mq4` / `*.mq5` | 72 fichiers d'exemple (36 paires, 10 catégories) | Lecture / validation |
 
 ---
 
@@ -78,10 +78,12 @@ Les hyperparamètres sont définis dans `configs/seq2seq.yaml` (modifiable).
 
 | Paramètre clé | Valeur par défaut | Description |
 |---|---|---|
-| `model.n_embd` / `n_head` / `n_layer` | 128 / 4 / 3 | Architecture du Transformer |
+| `model.n_embd` / `n_head` / `n_layer` | 64 / 4 / 4 | Architecture du Transformer |
 | `model.block_size` | 1024 | Taille du contexte maximal |
-| `training.batch_size` | 2 | Séquences en parallèle |
-| `training.max_epochs` | 500 | Nombre d'epochs |
+| `training.batch_size` | 5 | Séquences en parallèle |
+| `training.max_epochs` | 200 | Nombre d'epochs |
+| `training.eval_interval` | 10 | Évaluer la loss toutes les N époques |
+| `training.checkpoint_interval` | 10 | Sauvegarder un checkpoint toutes les N époques |
 | `training.learning_rate` | 0.001 | Taux d'apprentissage (AdamW) |
 
 Checkpoints : `checkpoints/seq2seq_epoch_NNNN.pt` (selon `training.checkpoint_interval`) et `checkpoints/seq2seq_best.pt` (meilleure loss de validation).
@@ -131,7 +133,8 @@ src/
 ├── tokenizers/
 │   └── mql_tokenizer.py    # Tokenizer regex niveau token (~343 tokens, <PAD>/<SOS>/<EOS>/<UNK>)
 ├── utils/
-│   └── config.py           # Chargeur de configuration YAML
+│   ├── config.py           # Chargeur de configuration YAML + résolution device
+│   └── metrics.py          # Export CSV/JSON de la loss + courbe matplotlib (optionnel)
 ├── train_seq2seq.py        # Entraînement Seq2Seq
 ├── train.py                # Entraînement GPT (legacy)
 └── scripts/
@@ -139,6 +142,8 @@ src/
     ├── prepare_conversion_data.py # Prépare train.txt/val.txt (legacy)
     ├── convert_mql4_seq2seq.py    # Inférence Seq2Seq (CLI)
     ├── convert_mql4.py            # Inférence GPT (CLI)
+    ├── debug_seq2seq_data.py      # Inspecte tokens/alignment du dataset Seq2Seq
+    ├── inspect_seq2seq_vocab.py   # Rapport vocabulaire depuis le .pkl
     └── mql4_generate.py / mql4_convert.py  # Génération de données synthétiques (expérimental)
 data/
 ├── raw/                    # Paires JSONL + fichiers .mq4/.mq5 d'exemple
@@ -148,8 +153,10 @@ configs/
 ├── seq2seq.yaml            # Configuration du pipeline Seq2Seq
 ├── gpt.yaml                # Configuration du pipeline GPT (legacy)
 └── default.yaml            # Config T5 obsolète (non utilisée)
-tests/                      # tests (pytest)
+docs/scripts/               # Documentation par script (CLI, options, exemples)
 ```
+
+> Note : aucune suite de tests n'est encore présente (pytest est configuré en dépendance dev, mais pas de dossier `tests/`).
 
 ---
 
@@ -187,6 +194,8 @@ Tous les chemins dans le YAML sont relatifs à la racine du projet et résolus a
 - Les checkpoints `seq2seq_epoch_*.pt` (~78 Mo chacun) sont volumineux ; le dépôt utilise Git LFS.
 - `configs/default.yaml` (config T5) est obsolète : utiliser `configs/seq2seq.yaml` ou `configs/gpt.yaml` à la place.
 - Tous les scripts d'entraînement et de préparation acceptent `--config <chemin>` pour utiliser une configuration personnalisée.
+- Documentation détaillée de chaque script (CLI, options, exemples) dans `docs/scripts/*.md`.
+- Le suivi d'apprentissage (loss de train/val, checkpoints) est décrit dans `AGENTS.md`.
 
 ## Licence
 

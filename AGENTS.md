@@ -2,9 +2,9 @@
 
 ## Project state
 
-**Deux architectures disponibles :** GPT char-level (baseline) et Seq2Seq token-level (expérimental).  
-Les anciens modules T5 (`src.data`, `src.inference`, `src.models`, `src.training`) ont été supprimés.  
-Active branch: `dataset_init` (3 commits ahead of origin).
+**Deux architectures disponibles :** GPT char-level (baseline) et Seq2Seq token-level (actuelle, recommandée).  
+Les anciens modules T5 (`src.data`, `src.inference`, `src.training`) ont été supprimés.  
+Active branch: `dataset_init` (à jour avec `origin/dataset_init`). Branche locale `main` conservée.
 
 ## Architecture
 
@@ -61,22 +61,29 @@ MQL5 output
 | `src.scripts.convert_mql4` | `convert_mql4()` + CLI | GPT inférence (legacy) |
 | `src.scripts.convert_mql4_seq2seq` | `convert_mql4()` + CLI | Seq2Seq inférence |
 | `src.scripts.prepare_seq2seq_data` | *(exécutable)* | Prépare les données pour Seq2Seq |
+| `src.scripts.debug_seq2seq_data` | *(exécutable)* | Debug dataset : inspecte les tokens/alignment de chaque paire |
+| `src.scripts.inspect_seq2seq_vocab` | *(exécutable)* | Rapport sur le vocabulaire du tokenizer depuis le `.pkl` |
+| `src.scripts.mql4_generate` / `mql4_convert` | *(exécutables)* | Génération + conversion de données synthétiques (expérimental) |
+| `src.utils.metrics` | `write_history_csv/json()`, `plot_history()` | Export CSV/JSON + courbe de loss (matplotlib optionnel) |
 
-**Note import/package** : Le dossier `src/GPT/` a ééenommé e `rc/models/`. Les imorts anciens (`frm GPT impr gpt`) ont étémis jor.
+**Note import/package** : le dossier `src/GPT/` a été renommé en `src/models/`. Les imports anciens (`from GPT import gpt`) ont été mis à jour — le package s'importe via `src.models.gpt` / `src.models.seq2seq`.
 
 ## Data
 
 | Path | Contents |
 |---|---|
-| `data/raw/mql_dataset_manual.jsonl` | 36 paires MQL4→MQL5 faites à la main |
+| `data/raw/mql_all_936.jsonl` | 936 paires MQL4→MQL5 — **dataset principal du pipeline Seq2Seq** |
+| `data/raw/mql_synthetic_900.jsonl` | 900 paires synthétiques (génération) |
+| `data/raw/mql_dataset_manual.jsonl` | 36 paires MQL4→MQL5 faites à la main (GPT legacy) |
 | `data/raw/mql_dataset_collected.jsonl` | Données collectées via GitHub — **vide** (0 lignes) |
-| `data/raw/` | 72 `.mq4`/`.mq5` example files (30 paires across 10 categories) |
-| `data/processed/seq2seq_dataset.pkl` | tokenizer + enc_inputs / dec_inputs / labels (Seq2Seq) |
+| `data/raw/` | 72 `.mq4`/`.mq5` example files (36 paires across 10 categories) + `collect_mql_dataset.py` |
+| `data/processed/seq2seq_dataset.pkl` | tokenizer + enc_inputs / dec_inputs / labels + indices train/val (Seq2Seq) |
 | `data/processed/train.txt` | ~218 lignes, format `MQL4: …\n\nMQL5: …###` (LFS, GPT legacy) |
 | `data/processed/val.txt` | ~46 lignes, idem (LFS, GPT legacy) |
 | `configs/seq2seq.yaml` | Configuration YAML du pipeline Seq2Seq |
 | `configs/gpt.yaml` | Configuration YAML du pipeline GPT (legacy) |
-| `src.scripts.debug_seq2seq_data` | *(exécutable)* | Debug dataset : inspecte les tokens de chaque paire |
+| `configs/default.yaml` | Obsolète (config T5) — non utilisé |
+| `docs/scripts/*.md` | Documentation par script (CLI, options, exemples) |
 
 ## Commands
 
@@ -108,6 +115,8 @@ python src/scripts/debug_seq2seq_data.py --config configs/seq2seq.yaml
 python src/scripts/debug_seq2seq_data.py --config configs/seq2seq.yaml --index 0 --show-meta --show-code --raw-ids
 python src/scripts/debug_seq2seq_data.py --config configs/seq2seq.yaml --range 100 105 --mode enc --raw-ids
 python src/scripts/debug_seq2seq_data.py --config configs/seq2seq.yaml --index 0 --alignment --show-meta
+python src/scripts/inspect_seq2seq_vocab.py                    # rapport vocabulaire depuis le .pkl
+python src/scripts/inspect_seq2seq_vocab.py --pkl <chemin.pkl> # variante avec chemin explicite
 
 # Lint & typecheck (⚠️ requis: pip install -e ".[dev]", non installé dans .venv/ par défaut)
 ruff check .
@@ -116,7 +125,7 @@ mypy src/
 pytest
 ```
 
-**Remarque** : le venv actif est `.venv/` (non encore dans `.gitignore`). Les dépendances `[dev]` (ruff, mypy, pytest) n'y sont pas installées. Les outils de lint/typecheck ne sont pas exécutables avant leur installation. `tqdm` est installé (barre de progression) ; `matplotlib` est optionnel (courbe de loss générée seulement s'il est présent).
+**Remarque** : le venv actif est `.venv/` (déjà dans `.gitignore`). Les dépendances `[dev]` (ruff, mypy, pytest) n'y sont pas installées — les outils de lint/typecheck ne sont donc pas exécutables avant leur installation. `tqdm` est installé (barre de progression) ; `matplotlib` est optionnel (courbe de loss générée seulement s'il est présent). Gestion des dépendances via `uv` (`uv.lock` présent à la racine).
 
 ## Suivi de l'apprentissage (affichage écran)
 
