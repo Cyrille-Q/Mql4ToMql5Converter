@@ -5,7 +5,6 @@ import sys
 from typing import Any
 
 import torch
-import torch.nn as nn
 from torch.nn.utils.rnn import pad_sequence
 
 # Ajouter la racine du projet au path avant les imports locaux
@@ -13,15 +12,15 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 sys.path.insert(0, _PROJECT_ROOT)
 
-from src.utils.config import load_config, resolve_device
 from src.utils import metrics
+from src.utils.config import load_config, resolve_device
 
 try:
     from tqdm import tqdm
 except ImportError:
     tqdm = None
 
-parser = argparse.ArgumentParser(description='Train Seq2Seq model')
+parser = argparse.ArgumentParser(description='Train T5-small Seq2Seq model')
 parser.add_argument('--config', default='configs/seq2seq.yaml',
                     help='Path to YAML config file (default: configs/seq2seq.yaml)')
 parser.add_argument('--resume', default=None,
@@ -35,8 +34,8 @@ cfg = load_config(args.config)
 PROJECT_ROOT = cfg._project_root
 sys.path.insert(0, PROJECT_ROOT)
 
-from src.models.seq2seq import Seq2SeqTransformer
-from src.tokenizers.mql_tokenizer import PAD_IDX, SOS_IDX, EOS_IDX
+from src.models.t5_small import T5Small
+from src.tokenizers.mql_sp_tokenizer import EOS_IDX, PAD_IDX, SOS_IDX
 
 torch.manual_seed(cfg.seed)
 
@@ -47,17 +46,17 @@ os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
 # Hyperparameters
 batch_size = cfg.training.batch_size
-block_size = cfg.model.block_size
 max_epochs = cfg.training.max_epochs
 eval_interval = cfg.training.eval_interval
 learning_rate = cfg.training.learning_rate
 device = resolve_device(cfg)
-n_embd = cfg.model.n_embd
-n_head = cfg.model.n_head
+d_model = cfg.model.d_model
+d_ff = cfg.model.d_ff
+num_heads = cfg.model.num_heads
+d_kv = cfg.model.d_kv
 n_layer = cfg.model.n_layer
 dropout = cfg.model.dropout
 eval_iters = cfg.training.eval_iters
-checkpoint_interval = cfg.training.checkpoint_interval
 NB_TOKENS = 80  # tokens générés vs attendus affichés lors du test verbose
 
 # Load dataset
@@ -75,6 +74,7 @@ vocab_size = tokenizer.vocab_size
 print(f"Vocab size: {vocab_size}")
 print(f"Train examples: {len(train_idx)}, Val examples: {len(val_idx)}")
 
+
 def collate_batch(indices):
     enc = [torch.tensor(enc_inputs[i], dtype=torch.long) for i in indices]
     dec = [torch.tensor(dec_inputs[i], dtype=torch.long) for i in indices]
@@ -83,6 +83,7 @@ def collate_batch(indices):
     dec_pad = pad_sequence(dec, batch_first=True, padding_value=PAD_IDX)
     lbl_pad = pad_sequence(lbl, batch_first=True, padding_value=PAD_IDX)
     return enc_pad, dec_pad, lbl_pad
+
 
 # Training state (possibly overridden below via --resume)
 start_epoch = 0
@@ -94,23 +95,18 @@ best_val_loss = float('inf')
 if args.resume:
     print(f"Loading checkpoint from {args.resume}")
     ckpt = torch.load(args.resume, map_location=device)
-    n_embd = ckpt['n_embd']
-    n_head = ckpt['n_head']
+    d_model = ckpt['d_model']
+    d_ff = ckpt['d_ff']
+    num_heads = ckpt['num_heads']
+    d_kv = ckpt['d_kv']
     n_layer = ckpt['n_layer']
-    block_size = ckpt['block_size']
     dropout = ckpt['dropout']
     if ckpt['vocab_size'] != vocab_size:
         print(f"Warning: checkpoint vocab_size ({ckpt['vocab_size']}) "
               f"!= dataset vocab_size ({vocab_size})")
-    model = Seq2SeqTransformer(vocab_size, n_embd, block_size, n_head, n_layer,
-                               dropout, pad_idx=PAD_IDX).to(device)
-    ckpt_pos = ckpt['model_state_dict']['position_embedding.weight'].shape[0]
-    if ckpt_pos != model.position_embedding.num_embeddings:
-        new_emb = nn.Embedding(ckpt_pos, model.position_embedding.embedding_dim,
-                               device=model.position_embedding.weight.device)
-        n_old = min(model.position_embedding.num_embeddings, ckpt_pos)
-        new_emb.weight.data[:n_old] = model.position_embedding.weight.data[:n_old]
-        model.position_embedding = new_emb
+    model = T5Small(vocab_size, d_model=d_model, d_ff=d_ff, num_heads=num_heads,
+                    d_kv=d_kv, n_layer=n_layer, dropout=dropout,
+                    pad_idx=PAD_IDX).to(device)
     model.load_state_dict(ckpt['model_state_dict'])
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
     if 'optimizer_state_dict' in ckpt:
@@ -123,11 +119,13 @@ if args.resume:
     print(f"Resuming from epoch {start_epoch} (step {step}), "
           f"previous best val_loss {best_val_loss:.4f}")
 else:
-    model = Seq2SeqTransformer(vocab_size, n_embd, block_size, n_head, n_layer,
-                               dropout, pad_idx=PAD_IDX).to(device)
+    model = T5Small(vocab_size, d_model=d_model, d_ff=d_ff, num_heads=num_heads,
+                    d_kv=d_kv, n_layer=n_layer, dropout=dropout,
+                    pad_idx=PAD_IDX).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 
-print(f"Parameters: {sum(p.numel() for p in model.parameters())/1e6:.2f}M")
+print(f"Parameters: {sum(p.numel() for p in model.parameters()) / 1e6:.2f}M")
+
 
 @torch.no_grad()
 def estimate_loss(split, eval_iters=eval_iters):
@@ -143,6 +141,7 @@ def estimate_loss(split, eval_iters=eval_iters):
     model.train()
     return sum(losses) / len(losses)
 
+
 @torch.no_grad()
 def show_generation_test(split, indices, epoch):
     """Affiche Generated vs Expected sur un exemple aléatoire d'un split."""
@@ -154,14 +153,36 @@ def show_generation_test(split, indices, epoch):
     nb_exp = len(dec_inputs[test_idx]) - 1  # tokens attendus (hors SOS)
     max_start = max(nb_exp - NB_TOKENS, 0)
     start = int(torch.randint(max_start + 1, (1,)).item())
-    gen_ids = model.generate(enc_tensor, max_new_tokens=start + NB_TOKENS,
-                             eos_token=EOS_IDX, sos_token=SOS_IDX)
+    gen = model.generate(enc_tensor, max_new_tokens=start + NB_TOKENS,
+                         eos_token=EOS_IDX, sos_token=SOS_IDX)
+    gen_ids = gen[0].tolist()
     gen_tokens = gen_ids[1 + start:1 + start + NB_TOKENS]
     exp_tokens = dec_inputs[test_idx][1 + start:1 + start + NB_TOKENS]
     print(f"\n  === Generation test ({split}, epoch {epoch}, "
           f"example {test_idx}, start {start}) ===")
     print(f"  Generated: {tokenizer.decode(gen_tokens)}")
     print(f"  Expected : {tokenizer.decode(exp_tokens)}")
+
+
+def _save_checkpoint(path, epoch, val_loss, extra=None):
+    payload = {
+        'epoch': epoch,
+        'step': step,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'val_loss': val_loss,
+        'vocab_size': vocab_size,
+        'd_model': d_model,
+        'd_ff': d_ff,
+        'num_heads': num_heads,
+        'd_kv': d_kv,
+        'n_layer': n_layer,
+        'dropout': dropout,
+    }
+    if extra:
+        payload.update(extra)
+    torch.save(payload, path)
+
 
 # Training loop
 train_losses = []
@@ -206,41 +227,21 @@ for epoch in range(start_epoch, max_epochs):
         val_losses.append(avg_val_loss)
         history.append({'epoch': epoch, 'train_loss': avg_train_loss,
                         'val_loss': avg_val_loss, 'step': step})
-        print(f"epoch {epoch:3d} | train loss {avg_train_loss:.4f} | val loss {avg_val_loss:.4f} | step {step}")
+        print(f"epoch {epoch:3d} | train loss {avg_train_loss:.4f} | "
+              f"val loss {avg_val_loss:.4f} | step {step}")
 
         # Save checkpoint
-        checkpoint_path = os.path.join(CHECKPOINT_DIR, f"seq2seq_epoch_{epoch:04d}.pt")
-        torch.save({
-            'epoch': epoch,
-            'step': step,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'train_loss': avg_train_loss,
-            'val_loss': avg_val_loss,
-            'vocab_size': vocab_size,
-            'n_embd': n_embd,
-            'n_head': n_head,
-            'n_layer': n_layer,
-            'block_size': block_size,
-            'dropout': dropout,
-        }, checkpoint_path)
+        _save_checkpoint(
+            os.path.join(CHECKPOINT_DIR, f"seq2seq_epoch_{epoch:04d}.pt"),
+            epoch, avg_val_loss,
+            {'train_loss': avg_train_loss},
+        )
 
         # Save best
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
-            best_path = os.path.join(CHECKPOINT_DIR, "seq2seq_best.pt")
-            torch.save({
-                'epoch': epoch,
-                'step': step,
-                'model_state_dict': model.state_dict(),
-                'val_loss': best_val_loss,
-                'vocab_size': vocab_size,
-                'n_embd': n_embd,
-                'n_head': n_head,
-                'n_layer': n_layer,
-                'block_size': block_size,
-                'dropout': dropout,
-            }, best_path)
+            _save_checkpoint(os.path.join(CHECKPOINT_DIR, "seq2seq_best.pt"),
+                             epoch, best_val_loss)
             print(f"  -> New best model! (val_loss: {best_val_loss:.4f})")
 
         # Test generation on the train and validation splits (only in verbose mode)
@@ -258,7 +259,7 @@ history_json = os.path.join(CHECKPOINT_DIR, "seq2seq_loss_history.json")
 metrics.write_history_json(history_json, history)
 print(f"Loss history saved to {history_json}")
 curve_path = os.path.join(CHECKPOINT_DIR, "seq2seq_loss_curve.png")
-if metrics.plot_history(curve_path, history):
+if metrics.plot_history(curve_path, history, log_scale=True):
     print(f"Loss curve saved to {curve_path}")
 
 print(f"\nTraining complete. Best val loss: {best_val_loss:.4f}")

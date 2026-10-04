@@ -1,7 +1,8 @@
-import os
-import sys
-import pickle
 import argparse
+import os
+import pickle
+import sys
+
 import torch
 
 # Ajouter la racine du projet au path avant les imports locaux
@@ -11,7 +12,7 @@ sys.path.insert(0, _PROJECT_ROOT)
 
 from src.utils.config import load_config
 
-parser = argparse.ArgumentParser(description='Convert MQL4 to MQL5 using Seq2Seq')
+parser = argparse.ArgumentParser(description='Convert MQL4 to MQL5 using T5-small')
 parser.add_argument('checkpoint_path', help='Path to model checkpoint (.pt)')
 parser.add_argument('mql4_input', nargs='?', default=None,
                     help='MQL4 code string or path to .mq4 file')
@@ -23,49 +24,32 @@ cfg = load_config(args.config)
 PROJECT_ROOT = cfg._project_root
 sys.path.insert(0, PROJECT_ROOT)
 
-from src.models.seq2seq import Seq2SeqTransformer
-from src.tokenizers.mql_tokenizer import MQLTokenizer, EOS_IDX, SOS_IDX, PAD_IDX
-
+from src.models.t5_small import T5Small
+from src.tokenizers.mql_sp_tokenizer import EOS_IDX, PAD_IDX, SOS_IDX
 
 DATASET_FILE = cfg.data.output_pkl
 
 
 def load_checkpoint(checkpoint_path, device):
     checkpoint = torch.load(checkpoint_path, map_location=device)
-    sd = checkpoint['model_state_dict']
-    pos_emb_key = 'position_embedding.weight'
-    actual_block_size = sd[pos_emb_key].shape[0]
-    model = Seq2SeqTransformer(
+    model = T5Small(
         vocab_size=checkpoint['vocab_size'],
-        n_embd=checkpoint['n_embd'],
-        block_size=actual_block_size,
-        n_head=checkpoint['n_head'],
+        d_model=checkpoint['d_model'],
+        d_ff=checkpoint['d_ff'],
+        num_heads=checkpoint['num_heads'],
+        d_kv=checkpoint['d_kv'],
         n_layer=checkpoint['n_layer'],
-        dropout=checkpoint.get('dropout', 0.2),
+        dropout=checkpoint.get('dropout', 0.1),
         pad_idx=PAD_IDX,
     )
 
-    model_state = model.state_dict()
-    for key in list(sd.keys()):
-        if key.endswith('.tril'):
-            sd.pop(key, None)
-            continue
-        if sd[key].shape != model_state[key].shape:
-            sd.pop(key, None)
-
-    missing, unexpected = model.load_state_dict(sd, strict=False)
-    if missing:
-        print(f"  [load] missing keys (re-initialized): {missing}")
-    if unexpected:
-        print(f"  [load] unexpected keys (skipped): {unexpected}")
-
+    model.load_state_dict(checkpoint['model_state_dict'])
     model = model.to(device)
     model.eval()
-    return model, actual_block_size
+    return model
 
 
 def load_tokenizer(dataset_path):
-    import pickle
     with open(dataset_path, 'rb') as f:
         dataset = pickle.load(f)
     return dataset['tokenizer']
@@ -76,14 +60,14 @@ def convert_mql4(model, tokenizer, mql4_code, device, max_new_tokens=500):
     enc_tensor = torch.tensor([enc_ids], dtype=torch.long, device=device)
 
     with torch.no_grad():
-        gen_ids = model.generate(
+        gen = model.generate(
             enc_tensor,
             max_new_tokens=max_new_tokens,
             eos_token=EOS_IDX,
             sos_token=SOS_IDX,
         )
 
-    output = tokenizer.decode(gen_ids)
+    output = tokenizer.decode(gen[0].tolist())
     return output.strip()
 
 
@@ -93,8 +77,8 @@ if __name__ == '__main__':
 
     tokenizer = load_tokenizer(DATASET_FILE)
 
-    model, block_size = load_checkpoint(checkpoint_path, device)
-    print(f"Model loaded: vocab={tokenizer.vocab_size}, block_size={block_size}, device={device}")
+    model = load_checkpoint(checkpoint_path, device)
+    print(f"Model loaded: vocab={tokenizer.vocab_size}, device={device}")
 
     if args.mql4_input:
         input_arg = args.mql4_input
@@ -111,10 +95,10 @@ void OnTick(){
     if(Close[0] > ma) Print("above MA");
 }"""
 
-    print(f"\n=== Input MQL4 ===")
+    print("\n=== Input MQL4 ===")
     print(mql4_code)
 
     mql5_code = convert_mql4(model, tokenizer, mql4_code, device)
 
-    print(f"\n=== Generated MQL5 ===")
+    print("\n=== Generated MQL5 ===")
     print(mql5_code)

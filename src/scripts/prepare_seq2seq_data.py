@@ -1,9 +1,9 @@
+import argparse
 import json
 import os
-import sys
-import random
 import pickle
-import argparse
+import random
+import sys
 
 # Ajouter la racine du projet au path avant les imports locaux
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -12,7 +12,7 @@ sys.path.insert(0, _PROJECT_ROOT)
 
 from src.utils.config import load_config
 
-parser = argparse.ArgumentParser(description='Prepare Seq2Seq dataset')
+parser = argparse.ArgumentParser(description='Prepare Seq2Seq dataset (T5 / SentencePiece)')
 parser.add_argument('--config', default='configs/seq2seq.yaml',
                     help='Path to YAML config file (default: configs/seq2seq.yaml)')
 args = parser.parse_args()
@@ -21,12 +21,13 @@ cfg = load_config(args.config)
 PROJECT_ROOT = cfg._project_root
 sys.path.insert(0, PROJECT_ROOT)
 
-from src.tokenizers.mql_tokenizer import MQLTokenizer, SOS_IDX, EOS_IDX
+from src.tokenizers.mql_sp_tokenizer import EOS_IDX, SOS_IDX, MQLSPTokenizer
 
 random.seed(cfg.seed)
 
 INPUT_JSONL = cfg.data.input_jsonl
 OUTPUT_FILE = cfg.data.output_pkl
+TOKENIZER_DIR = cfg.data.tokenizer_dir
 
 os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
 
@@ -39,15 +40,18 @@ with open(INPUT_JSONL, 'r', encoding='utf-8') as f:
 
 print(f"Loaded {len(pairs)} pairs")
 
-# Fit tokenizer on all MQL4 and MQL5 texts
+# Fit SentencePiece tokenizer on all MQL4 and MQL5 texts
 all_texts = []
 for mql4, mql5 in pairs:
     all_texts.append(mql4)
     all_texts.append(mql5)
 
-tokenizer = MQLTokenizer()
-tokenizer.fit(all_texts)
-print(f"Vocab size: {tokenizer.vocab_size}")
+tok_cfg = cfg.tokenizer
+tokenizer = MQLSPTokenizer(vocab_size=tok_cfg.vocab_size,
+                           model_type=tok_cfg.model_type,
+                           character_coverage=tok_cfg.character_coverage)
+tokenizer.fit(all_texts, TOKENIZER_DIR)
+print(f"SP vocab size: {tokenizer.vocab_size} (trained at {tokenizer.model_path})")
 
 # Tokenize
 enc_inputs = []
@@ -73,8 +77,10 @@ print(f"Train: {len(train_idx)}, Val: {len(val_idx)}")
 # Check sequence lengths
 enc_lens = [len(e) for e in enc_inputs]
 dec_lens = [len(d) for d in dec_inputs]
-print(f"Encoder input:  min={min(enc_lens)}, max={max(enc_lens)}, avg={sum(enc_lens)/len(enc_lens):.0f}")
-print(f"Decoder input:  min={min(dec_lens)}, max={max(dec_lens)}, avg={sum(dec_lens)/len(dec_lens):.0f}")
+print(f"Encoder input:  min={min(enc_lens)}, max={max(enc_lens)}, "
+      f"avg={sum(enc_lens) / len(enc_lens):.0f}")
+print(f"Decoder input:  min={min(dec_lens)}, max={max(dec_lens)}, "
+      f"avg={sum(dec_lens) / len(dec_lens):.0f}")
 
 # Save
 dataset = {

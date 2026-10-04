@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────
-# Seq2Seq pipeline configuration
+# Seq2Seq pipeline configuration (T5-small, HF-compatible)
 # ──────────────────────────────────────────────
 # Hyperparamètres commentés pour référence.
 # Tous les chemins sont relatifs à la racine du projet.
@@ -17,22 +17,30 @@ data:
   checkpoint_dir: "checkpoints"
   input_jsonl: "mql_all_936.jsonl"
   output_pkl: "seq2seq_dataset.pkl"
+  tokenizer_dir: "data/processed/sp_mql"   # dossier du tokenizer SentencePiece
 
 # Prétraitement
 preprocessing:
   # Proportion des données pour l'entraînement (le reste = validation)
   train_split: 0.9
 
-# Architecture du modèle
+# Tokenizer (SentencePiece, requis pour l'export GGUF via llama.cpp)
+tokenizer:
+  model_type: "bpe"         # type SentencePiece ("bpe" similaire T5)
+  vocab_size: 6000          # cible de vocabulaire (limité par le corpus MQL)
+  character_coverage: 0.9995
+  unk_piece: "<unk>"
+  # T5 place PAD au rang 0. Ordre reproduit par prepare_seq2seq_data.
+
+# Architecture du modèle (T5-small)
 model:
-  n_embd: 64       # dimension des embeddings
-  n_head: 4         # nombre de têtes d'attention par bloc
-  n_layer: 4        # nombre de blocs encodeur/décodeur
-  dropout: 0.2      # taux de dropout
-  # Taille du contexte maximal (block_size) :
-  # Le modèle considère au plus block_size tokens comme contexte.
-  # block_size = 1024 permet de couvrir des scripts MQL de taille moyenne.
-  block_size: 1024
+  d_model: 256      # hidden size (T5-small: 512)
+  d_ff: 1024        # taille feed-forward (T5-small: 2048)
+  num_heads: 8      # têtes d'attention (T5-small: 8)
+  d_kv: 64          # dimension par tête (T5-small: 64)
+  n_layer: 3        # couches encodeur = décodeur (T5-small: 6)
+  dropout: 0.3      # taux de dropout
+  block_size: 1024  # longueur max de séquence (encodage batch = max du batch)
 
 # Paramètres d'entraînement
 training:
@@ -40,8 +48,8 @@ training:
   # Une batch_size plus grande permet des gradients plus stables
   # mais nécessite plus de mémoire GPU.
   batch_size: 5
-  max_epochs: 20
+  max_epochs: 200
   eval_interval: 10      # évaluer la loss tous les N epochs
   eval_iters: 10          # nombre de batches pour estimer la loss
-  learning_rate: 0.001
+  learning_rate: 0.0001
   checkpoint_interval: 10 # sauvegarder un checkpoint tous les N epochs

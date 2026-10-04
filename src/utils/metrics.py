@@ -35,8 +35,15 @@ def plot_history(
     path: str | Path,
     history: Sequence[dict],
     loss_keys: Sequence[str] = ('train_loss', 'val_loss'),
+    log_scale: bool = False,
 ) -> bool:
     """Plot loss curves with matplotlib (Agg backend).
+
+    Args:
+        path: where to save the figure.
+        history: list of checkpoint dicts (each with x-axis + loss keys).
+        loss_keys: loss columns to plot.
+        log_scale: if ``True``, use a logarithmic y-axis for the loss.
 
     Returns ``True`` if a plot was produced, ``False`` if matplotlib is not
     installed (a hint is printed in that case).
@@ -64,6 +71,8 @@ def plot_history(
             ax.plot(xs, [row.get(key) for row in history], marker='o', label=key)
     ax.set_xlabel(x_key)
     ax.set_ylabel('loss')
+    if log_scale:
+        ax.set_yscale('log')
     ax.set_title('Training progress')
     ax.legend()
     ax.grid(True)
