@@ -1,4 +1,4 @@
-# `src/scripts/prepare_seq2seq_data.py` — Seq2Seq Data Preparation
+# `src/scripts/prepare_t5_data.py` — T5 Data Preparation
 
 ## Description
 
@@ -11,7 +11,7 @@ train/validation, et sauvegarde le tout dans un fichier `.pkl`.
 
 | Argument   | Type   | Requis | Défaut               | Description                     |
 |------------|--------|--------|----------------------|---------------------------------|
-| `--config` | `str`  | Non    | `configs/seq2seq.yaml` | Chemin vers le fichier YAML   |
+| `--config` | `str`  | Non    | `configs/t5.yaml` | Chemin vers le fichier YAML   |
 
 Paramètres lus depuis la config :
 - `cfg.data.input_jsonl` — fichier d'entrée (`.jsonl`)
@@ -22,18 +22,18 @@ Paramètres lus depuis la config :
 ## Exemples
 
 ```bash
-python src/scripts/prepare_seq2seq_data.py --config configs/seq2seq.yaml
+python src/scripts/prepare_t5_data.py --config configs/t5.yaml
 ```
 
 ## Dépendances
 
 - **Données :** `data/raw/mql_all_936.jsonl` (936 paires MQL4↔MQL5)
-- **Config :** `configs/seq2seq.yaml`
+- **Config :** `configs/t5.yaml`
 - **Tokenizer :** `src/tokenizers/mql_tokenizer.py` (MQLTokenizer)
-- **Sortie :** `data/processed/seq2seq_dataset.pkl`
+- **Sortie :** `data/processed/t5_dataset.pkl`
 
 ## Pipeline
 
 ```
-prepare_seq2seq_data.py → train_seq2seq.py → convert_mql4_seq2seq.py
+prepare_t5_data.py → train_t5.py → convert_mql4_t5.py
 ```

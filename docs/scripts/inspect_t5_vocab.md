@@ -1,4 +1,4 @@
-# `src/scripts/inspect_seq2seq_vocab.py` — Seq2Seq Vocabulary Inspection
+# `src/scripts/inspect_t5_vocab.py` — T5 Vocabulary Inspection
 
 ## Description
 
@@ -9,18 +9,18 @@ chaque token avec son index, sa représentation et son statut (token spécial ou
 
 | Argument | Type   | Requis | Défaut                               | Description              |
 |----------|--------|--------|--------------------------------------|--------------------------|
-| `--pkl`  | `str`  | Non    | `data/processed/seq2seq_dataset.pkl` | Chemin vers le `.pkl`    |
+| `--pkl`  | `str`  | Non    | `data/processed/t5_dataset.pkl` | Chemin vers le `.pkl`    |
 
 ## Exemples
 
 ```bash
 # Inspection du vocabulaire par défaut
-python src/scripts/inspect_seq2seq_vocab.py
+python src/scripts/inspect_t5_vocab.py
 
 # Inspection avec un chemin personnalisé
-python src/scripts/inspect_seq2seq_vocab.py --pkl data/processed/seq2seq_dataset.pkl
+python src/scripts/inspect_t5_vocab.py --pkl data/processed/t5_dataset.pkl
 ```
 
 ## Dépendances
 
-- **Dataset :** `data/processed/seq2seq_dataset.pkl` (généré par `prepare_seq2seq_data.py`)
+- **Dataset :** `data/processed/t5_dataset.pkl` (généré par `prepare_t5_data.py`)

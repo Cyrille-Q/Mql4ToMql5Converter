@@ -12,9 +12,9 @@ sys.path.insert(0, _PROJECT_ROOT)
 
 from src.utils.config import load_config
 
-parser = argparse.ArgumentParser(description='Prepare Seq2Seq dataset (T5 / SentencePiece)')
-parser.add_argument('--config', default='configs/seq2seq.yaml',
-                    help='Path to YAML config file (default: configs/seq2seq.yaml)')
+parser = argparse.ArgumentParser(description='Prepare T5 dataset (T5 / SentencePiece)')
+parser.add_argument('--config', default='configs/t5.yaml',
+                    help='Path to YAML config file (default: configs/t5.yaml)')
 args = parser.parse_args()
 
 cfg = load_config(args.config)

@@ -11,9 +11,9 @@ sys.path.insert(0, _PROJECT_ROOT)
 from src.utils.config import load_config
 from src.tokenizers.mql_tokenizer import SPECIAL_TOKENS
 
-parser = argparse.ArgumentParser(description='Debug Seq2Seq dataset: inspect tokenized pairs')
-parser.add_argument('--config', default='configs/seq2seq.yaml',
-                    help='Path to YAML config file (default: configs/seq2seq.yaml)')
+parser = argparse.ArgumentParser(description='Debug T5 dataset: inspect tokenized pairs')
+parser.add_argument('--config', default='configs/t5.yaml',
+                    help='Path to YAML config file (default: configs/t5.yaml)')
 parser.add_argument('--index', type=int, default=None,
                     help='Show a single pair by index')
 parser.add_argument('--range', type=int, nargs=2, default=None, metavar=('START', 'END'),

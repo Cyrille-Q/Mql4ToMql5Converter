@@ -6,7 +6,7 @@ Deux approches coexistent dans le dépôt :
 
 | Approche | Type | Statut |
 |---|---|---|
-| **Seq2Seq token-level** | Transformer encodeur-décodeur (`src/models/seq2seq.py`) | Architecture actuelle, à utiliser |
+| **T5 token-level** | Transformer encodeur-décodeur (`src/models/t5_small.py`) | Architecture actuelle, à utiliser |
 | **GPT char-level** | GPT caractère (`src/models/gpt.py`) | Baseline legacy, conservée pour comparaison |
 
 ---
@@ -41,17 +41,17 @@ Les paires d'entraînement sont au format JSONL avec les champs `mql4` et `mql5`
 
 ---
 
-## Pipeline Seq2Seq (recommandé)
+## Pipeline T5 (recommandé)
 
 ```
 mql_all_936.jsonl
-        │  src/scripts/prepare_seq2seq_data.py   (tokenise + split 90/10, seed 42)
+        │  src/scripts/prepare_t5_data.py   (tokenise + split 90/10, seed 42)
         ▼
-data/processed/seq2seq_dataset.pkl   enc_inputs / dec_inputs / labels + tokenizer
-        │  src/train_seq2seq.py
+data/processed/t5_dataset.pkl   enc_inputs / dec_inputs / labels + tokenizer
+        │  src/train_t5.py
         ▼
-checkpoints/seq2seq_best.pt
-        │  src/scripts/convert_mql4_seq2seq.py
+checkpoints/t5_best.pt
+        │  src/scripts/convert_mql4_t5.py
         ▼
 MQL5 généré
 ```
@@ -59,26 +59,26 @@ MQL5 généré
 ### 1. Préparer les données
 
 ```bash
-python src/scripts/prepare_seq2seq_data.py
+python src/scripts/prepare_t5_data.py
 ```
 
-Construit `data/processed/seq2seq_dataset.pkl` (entrées encodées, tokenizer, indices train/val).
+Construit `data/processed/t5_dataset.pkl` (entrées encodées, tokenizer, indices train/val).
 
 ### 2. Entraîner
 
 ```bash
 # Utiliser la configuration par défaut
-python src/train_seq2seq.py
+python src/train_t5.py
 
 # Ou spécifier une configuration personnalisée
-python src/train_seq2seq.py --config configs/ma_config.yaml
+python src/train_t5.py --config configs/ma_config.yaml
 ```
 
-Les hyperparamètres sont définis dans `configs/seq2seq.yaml` (modifiable).
+Les hyperparamètres sont définis dans `configs/t5.yaml` (modifiable).
 
 | Paramètre clé | Valeur par défaut | Description |
 |---|---|---|
-| `model.n_embd` / `n_head` / `n_layer` | 64 / 4 / 4 | Architecture du Transformer |
+| `model.d_model` / `d_ff` / `num_heads` / `d_kv` / `n_layer` | 256 / 1024 / 8 / 64 / 3 | Architecture T5‑small |
 | `model.block_size` | 1024 | Taille du contexte maximal |
 | `training.batch_size` | 5 | Séquences en parallèle |
 | `training.max_epochs` | 200 | Nombre d'epochs |
@@ -86,16 +86,16 @@ Les hyperparamètres sont définis dans `configs/seq2seq.yaml` (modifiable).
 | `training.checkpoint_interval` | 10 | Sauvegarder un checkpoint toutes les N époques |
 | `training.learning_rate` | 0.001 | Taux d'apprentissage (AdamW) |
 
-Checkpoints : `checkpoints/seq2seq_epoch_NNNN.pt` (selon `training.checkpoint_interval`) et `checkpoints/seq2seq_best.pt` (meilleure loss de validation).
+Checkpoints : `checkpoints/t5_epoch_NNNN.pt` (selon `training.checkpoint_interval`) et `checkpoints/t5_best.pt` (meilleure loss de validation).
 
 ### 3. Convertir du MQL4
 
 ```bash
 # À partir d'un fichier
-python src/scripts/convert_mql4_seq2seq.py checkpoints/seq2seq_best.pt mon_indicateur.mq4
+python src/scripts/convert_mql4_t5.py checkpoints/t5_best.pt mon_indicateur.mq4
 
 # Ou directement depuis une chaîne
-python src/scripts/convert_mql4_seq2seq.py checkpoints/seq2seq_best.pt "extern int Period=14; void OnTick() { double ma = iMA(Symbol(),0,Period,0,MODE_SMA,PRICE_CLOSE,0); }"
+python src/scripts/convert_mql4_t5.py checkpoints/t5_best.pt "extern int Period=14; void OnTick() { double ma = iMA(Symbol(),0,Period,0,MODE_SMA,PRICE_CLOSE,0); }"
 ```
 
 ---
@@ -128,29 +128,29 @@ python src/scripts/convert_mql4.py checkpoints/best_model.pt mon_indicateur.mq4
 ```
 src/
 ├── models/
-│   ├── seq2seq.py          # Seq2SeqTransformer (encodeur-décodeur, attention croisée)
+│   ├── t5_small.py         # T5-small encoder-decoder (HF‑compatible)
 │   └── gpt.py              # GPT char-level (baseline)
 ├── tokenizers/
-│   └── mql_tokenizer.py    # Tokenizer regex niveau token (~343 tokens, <PAD>/<SOS>/<EOS>/<UNK>)
+│   └── mql_tokenizer.py, mql_sp_tokenizer.py    # Tokenizers regex + SentencePiece
 ├── utils/
 │   ├── config.py           # Chargeur de configuration YAML + résolution device
 │   └── metrics.py          # Export CSV/JSON de la loss + courbe matplotlib (optionnel)
-├── train_seq2seq.py        # Entraînement Seq2Seq
+├── train_t5.py             # Entraînement T5
 ├── train.py                # Entraînement GPT (legacy)
 └── scripts/
-    ├── prepare_seq2seq_data.py    # Tokenise les 936 paires
+    ├── prepare_t5_data.py         # Tokenise les 936 paires
     ├── prepare_conversion_data.py # Prépare train.txt/val.txt (legacy)
-    ├── convert_mql4_seq2seq.py    # Inférence Seq2Seq (CLI)
+    ├── convert_mql4_t5.py         # Inférence T5 (CLI)
     ├── convert_mql4.py            # Inférence GPT (CLI)
-    ├── debug_seq2seq_data.py      # Inspecte tokens/alignment du dataset Seq2Seq
-    ├── inspect_seq2seq_vocab.py   # Rapport vocabulaire depuis le .pkl
+    ├── debug_t5_data.py           # Inspecte tokens/alignment du dataset T5
+    ├── inspect_t5_vocab.py        # Rapport vocabulaire depuis le .pkl
     └── mql4_generate.py / mql4_convert.py  # Génération de données synthétiques (expérimental)
 data/
 ├── raw/                    # Paires JSONL + fichiers .mq4/.mq5 d'exemple
-└── processed/              # seq2seq_dataset.pkl, train.txt, val.txt
-checkpoints/                # seq2seq_best.pt, seq2seq_epoch_*.pt (gitignoré)
+└── processed/              # t5_dataset.pkl, train.txt, val.txt
+checkpoints/                # t5_best.pt, t5_epoch_*.pt (gitignoré)
 configs/
-├── seq2seq.yaml            # Configuration du pipeline Seq2Seq
+├── t5.yaml                 # Configuration du pipeline T5
 ├── gpt.yaml                # Configuration du pipeline GPT (legacy)
 └── default.yaml            # Config T5 obsolète (non utilisée)
 docs/scripts/               # Documentation par script (CLI, options, exemples)
@@ -166,13 +166,13 @@ Tous les scripts de préparation et d'entraînement lisent leurs hyperparamètre
 
 | Fichier | Pipeline | Scripts concernés |
 |---|---|---|
-| `configs/seq2seq.yaml` | Seq2Seq (recommandé) | `prepare_seq2seq_data.py`, `train_seq2seq.py`, `convert_mql4_seq2seq.py` |
+| `configs/t5.yaml` | T5 (recommandé) | `prepare_t5_data.py`, `train_t5.py`, `convert_mql4_t5.py` |
 | `configs/gpt.yaml` | GPT char-level (legacy) | `prepare_conversion_data.py`, `train.py`, `convert_mql4.py` |
 
 Exemple d'utilisation avec une config personnalisée :
 
 ```bash
-python src/train_seq2seq.py --config configs/seq2seq.yaml
+python src/train_t5.py --config configs/t5.yaml
 ```
 
 Les sections du YAML :
@@ -191,8 +191,8 @@ Tous les chemins dans le YAML sont relatifs à la racine du projet et résolus a
 ## Notes & limites
 
 - Le split train/validation est aléatoire (seed 42) ; idéalement il faudrait un split par famille de code pour éviter les fuites.
-- Les checkpoints `seq2seq_epoch_*.pt` (~78 Mo chacun) sont volumineux ; le dépôt utilise Git LFS.
-- `configs/default.yaml` (config T5) est obsolète : utiliser `configs/seq2seq.yaml` ou `configs/gpt.yaml` à la place.
+- Les checkpoints `t5_epoch_*.pt` (~78 Mo chacun) sont volumineux ; le dépôt utilise Git LFS.
+- `configs/default.yaml` (config T5) est obsolète : utiliser `configs/t5.yaml` ou `configs/gpt.yaml` à la place.
 - Tous les scripts d'entraînement et de préparation acceptent `--config <chemin>` pour utiliser une configuration personnalisée.
 - Documentation détaillée de chaque script (CLI, options, exemples) dans `docs/scripts/*.md`.
 - Le suivi d'apprentissage (loss de train/val, checkpoints) est décrit dans `AGENTS.md`.

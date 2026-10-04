@@ -16,8 +16,8 @@ parser = argparse.ArgumentParser(description='Convert MQL4 to MQL5 using T5-smal
 parser.add_argument('checkpoint_path', help='Path to model checkpoint (.pt)')
 parser.add_argument('mql4_input', nargs='?', default=None,
                     help='MQL4 code string or path to .mq4 file')
-parser.add_argument('--config', default='configs/seq2seq.yaml',
-                    help='Path to YAML config file (default: configs/seq2seq.yaml)')
+parser.add_argument('--config', default='configs/t5.yaml',
+                    help='Path to YAML config file (default: configs/t5.yaml)')
 args = parser.parse_args()
 
 cfg = load_config(args.config)

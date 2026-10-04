@@ -4,7 +4,7 @@ SentencePiece is required for a clean export to GGUF/llama.cpp (which expects
 a standard ``.model`` + the T5 special-token layout).  The piece indices for
 <pad> / <unk> / <s> / </s> are fixed as 0/1/2/3 to match HF T5 expectations.
 
-The object is pickled inside ``data/processed/seq2seq_dataset.pkl`` alongside
+The object is pickled inside ``data/processed/t5_dataset.pkl`` alongside
 the encoded sequences, so both the trainer and the inference CLI can reuse it.
 """
 

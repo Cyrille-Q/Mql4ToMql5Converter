@@ -20,9 +20,9 @@ try:
 except ImportError:
     tqdm = None
 
-parser = argparse.ArgumentParser(description='Train T5-small Seq2Seq model')
-parser.add_argument('--config', default='configs/seq2seq.yaml',
-                    help='Path to YAML config file (default: configs/seq2seq.yaml)')
+parser = argparse.ArgumentParser(description='Train T5-small model')
+parser.add_argument('--config', default='configs/t5.yaml',
+                    help='Path to YAML config file (default: configs/t5.yaml)')
 parser.add_argument('--resume', default=None,
                     help='Path to a .pt checkpoint to resume training from')
 parser.add_argument('--verbose', action='store_true',
@@ -232,7 +232,7 @@ for epoch in range(start_epoch, max_epochs):
 
         # Save checkpoint
         _save_checkpoint(
-            os.path.join(CHECKPOINT_DIR, f"seq2seq_epoch_{epoch:04d}.pt"),
+            os.path.join(CHECKPOINT_DIR, f"t5_epoch_{epoch:04d}.pt"),
             epoch, avg_val_loss,
             {'train_loss': avg_train_loss},
         )
@@ -240,7 +240,7 @@ for epoch in range(start_epoch, max_epochs):
         # Save best
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
-            _save_checkpoint(os.path.join(CHECKPOINT_DIR, "seq2seq_best.pt"),
+            _save_checkpoint(os.path.join(CHECKPOINT_DIR, "t5_best.pt"),
                              epoch, best_val_loss)
             print(f"  -> New best model! (val_loss: {best_val_loss:.4f})")
 
@@ -252,13 +252,13 @@ for epoch in range(start_epoch, max_epochs):
         print(f"epoch {epoch:3d} | train loss {avg_train_loss:.4f} | step {step}")
 
 # Export metrics (loss history)
-history_csv = os.path.join(CHECKPOINT_DIR, "seq2seq_loss_history.csv")
+history_csv = os.path.join(CHECKPOINT_DIR, "t5_loss_history.csv")
 metrics.write_history_csv(history_csv, history, ['epoch', 'train_loss', 'val_loss', 'step'])
 print(f"Loss history saved to {history_csv}")
-history_json = os.path.join(CHECKPOINT_DIR, "seq2seq_loss_history.json")
+history_json = os.path.join(CHECKPOINT_DIR, "t5_loss_history.json")
 metrics.write_history_json(history_json, history)
 print(f"Loss history saved to {history_json}")
-curve_path = os.path.join(CHECKPOINT_DIR, "seq2seq_loss_curve.png")
+curve_path = os.path.join(CHECKPOINT_DIR, "t5_loss_curve.png")
 if metrics.plot_history(curve_path, history, log_scale=True):
     print(f"Loss curve saved to {curve_path}")
 

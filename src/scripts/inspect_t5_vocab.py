@@ -13,12 +13,12 @@ _reconfigure = getattr(sys.stdout, 'reconfigure', None)
 if _reconfigure is not None:
     _reconfigure(encoding='utf-8')
 
-DEFAULT_PKL = os.path.join(_PROJECT_ROOT, 'data', 'processed', 'seq2seq_dataset.pkl')
+DEFAULT_PKL = os.path.join(_PROJECT_ROOT, 'data', 'processed', 't5_dataset.pkl')
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Inspect Seq2Seq vocabulary from .pkl dataset'
+        description='Inspect T5 vocabulary from .pkl dataset'
     )
     parser.add_argument(
         '--pkl',

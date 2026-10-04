@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────
-# Seq2Seq pipeline configuration (T5-small, HF-compatible)
+# T5-small pipeline configuration (HF‑compatible)
 # ──────────────────────────────────────────────
 # Hyperparamètres commentés pour référence.
 # Tous les chemins sont relatifs à la racine du projet.
@@ -16,7 +16,7 @@ data:
   processed_dir: "data/processed"
   checkpoint_dir: "checkpoints"
   input_jsonl: "mql_all_936.jsonl"
-  output_pkl: "seq2seq_dataset.pkl"
+  output_pkl: "t5_dataset.pkl"
   tokenizer_dir: "data/processed/sp_mql"   # dossier du tokenizer SentencePiece
 
 # Prétraitement
@@ -30,7 +30,7 @@ tokenizer:
   vocab_size: 6000          # cible de vocabulaire (limité par le corpus MQL)
   character_coverage: 0.9995
   unk_piece: "<unk>"
-  # T5 place PAD au rang 0. Ordre reproduit par prepare_seq2seq_data.
+  # T5 place PAD au rang 0. Ordre reproduit par prepare_t5_data.
 
 # Architecture du modèle (T5-small)
 model:

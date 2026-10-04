@@ -2,17 +2,17 @@
 then (optionally) convert it to GGUF for ``llama.cpp`` using the official
 ``convert_hf_to_gguf.py`` script (from the llama.cpp repository).
 
-The ``.pt`` checkpoint saved by ``src/train_seq2seq.py`` contains a state dict
+The ``.pt`` checkpoint saved by ``src/train_t5.py`` contains a state dict
 whose keys already match HuggingFace T5 naming, so exporting is mostly a matter
 of re-serializing tensors as ``model.safetensors`` plus writing ``config.json``
 and the SentencePiece tokenizer files.
 
 Usage (project root):
-    python src/scripts/export_t5_gguf.py checkpoints/seq2seq_best.pt \\
-        --config configs/seq2seq.yaml --output-dir exports/t5-mql
+    python src/scripts/export_t5_gguf.py checkpoints/t5_best.pt \\
+        --config configs/t5.yaml --output-dir exports/t5-mql
 
     # with automated GGUF conversion (llama.cpp repo checked out somewhere)
-    python src/scripts/export_t5_gguf.py checkpoints/seq2seq_best.pt \\
+    python src/scripts/export_t5_gguf.py checkpoints/t5_best.pt \\
         --gguf-converter "C:/llama.cpp/convert_hf_to_gguf.py" \\
         --quant f16 --output-dir exports/t5-mql
 """
@@ -36,9 +36,9 @@ from src.utils.config import load_config
 parser = argparse.ArgumentParser(
     description='Export T5-small checkpoint to HuggingFace + GGUF (llama.cpp)'
 )
-parser.add_argument('checkpoint_path', help='Path to a .pt checkpoint from src/train_seq2seq.py')
-parser.add_argument('--config', default='configs/seq2seq.yaml',
-                    help='Path to YAML config file (default: configs/seq2seq.yaml)')
+parser.add_argument('checkpoint_path', help='Path to a .pt checkpoint from src/train_t5.py')
+parser.add_argument('--config', default='configs/t5.yaml',
+                    help='Path to YAML config file (default: configs/t5.yaml)')
 parser.add_argument('--output-dir', default='exports/t5-mql',
                     help='Directory where the HuggingFace-style model will be written')
 parser.add_argument('--gguf-converter', default=None,

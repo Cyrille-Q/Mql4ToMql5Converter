@@ -1,4 +1,4 @@
-# `src/scripts/debug_seq2seq_data.py` — Seq2Seq Dataset Debug
+# `src/scripts/debug_t5_data.py` — T5 Dataset Debug
 
 ## Description
 
@@ -10,7 +10,7 @@ brut optionnel, les métadonnées, une visualisation d'alignement et les IDs bru
 
 | Argument       | Type       | Requis | Défaut               | Description                                  |
 |----------------|------------|--------|----------------------|----------------------------------------------|
-| `--config`     | `str`      | Non    | `configs/seq2seq.yaml` | Chemin vers le fichier YAML                |
+| `--config`     | `str`      | Non    | `configs/t5.yaml` | Chemin vers le fichier YAML                |
 | `--index`      | `int`      | Non    | `None`               | Affiche une seule paire par index            |
 | `--range`      | `int int`  | Non    | `None`               | Affiche les paires de START à END (inclus)   |
 | `--max`        | `int`      | Non    | `3`                  | Nombre maximum de paires à afficher          |
@@ -25,19 +25,19 @@ brut optionnel, les métadonnées, une visualisation d'alignement et les IDs bru
 
 ```bash
 # Affichage par défaut (3 premières paires, mode all)
-python src/scripts/debug_seq2seq_data.py --config configs/seq2seq.yaml
+python src/scripts/debug_t5_data.py --config configs/t5.yaml
 
 # Affiche une paire spécifique avec métadonnées et code brut
-python src/scripts/debug_seq2seq_data.py --config configs/seq2seq.yaml --index 0 --show-meta --show-code --raw-ids
+python src/scripts/debug_t5_data.py --config configs/t5.yaml --index 0 --show-meta --show-code --raw-ids
 
 # Affiche une plage de paires en mode encoder uniquement
-python src/scripts/debug_seq2seq_data.py --config configs/seq2seq.yaml --range 100 105 --mode enc --raw-ids
+python src/scripts/debug_t5_data.py --config configs/t5.yaml --range 100 105 --mode enc --raw-ids
 
 # Affiche l'alignement teacher-forcing
-python src/scripts/debug_seq2seq_data.py --config configs/seq2seq.yaml --index 0 --alignment --show-meta
+python src/scripts/debug_t5_data.py --config configs/t5.yaml --index 0 --alignment --show-meta
 ```
 
 ## Dépendances
 
-- **Dataset :** `data/processed/seq2seq_dataset.pkl`
-- **Config :** `configs/seq2seq.yaml`
+- **Dataset :** `data/processed/t5_dataset.pkl`
+- **Config :** `configs/t5.yaml`
